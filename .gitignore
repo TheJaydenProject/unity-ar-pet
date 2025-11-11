@@ -1,0 +1,165 @@
+# ========================
+# UNITY (General)
+# ========================
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+UserSettings/
+MemoryCaptures/
+Recordings/
+sysinfo.txt
+*.stacktrace
+*.crash
+
+# ========================
+# OS / EDITORS
+# ========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+*.user
+*.userprefs
+*.sln
+*.csproj
+*.pidb
+*.mdb
+*.pdb
+*.suo
+*.booproj
+*.unityproj
+*.userprefs
+
+# ========================
+# VERSION CONTROL / COLLAB
+# ========================
+.collabignore
+.collab/
+.vs/
+*.meta~
+
+# ========================
+# CONFIG & ENV FILES
+# ========================
+.env
+config.js
+firebase_config.js
+
+# ========================
+# FIREBASE / GOOGLE SERVICES
+# ========================
+# Android
+/google-services.json
+
+# iOS
+/GoogleService-Info.plist
+
+# Firebase Crashlytics, Analytics, Hosting
+firebase.json
+.crashlytics/
+.crashlytics-build.properties
+.firebase/
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+emulators-debug.log
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.runtimeconfig.json
+
+# Auth / Service Keys
+*.key.json
+*.pem
+serviceAccountKey.json
+
+# ========================
+# UNITY PACKAGES / ASSETS
+# ========================
+/Assets/AssetStoreTools*
+/Assets/Plugins/Android/libs/*.jar
+/Assets/Plugins/Android/libs/*.aar
+/Assets/StreamingAssets/aa/*
+/Assets/StreamingAssets/AssetBundles/*
+*.unitypackage
+
+# ========================
+# ADDRESSABLES
+# ========================
+/ServerData/
+/LocalBuildPath/
+/RemoteBuildPath/
+
+# ========================
+# ANDROID BUILD FILES
+# ========================
+.gradle/
+gradle/
+*.gradle
+gradlew
+gradlew.bat
+*.apk
+*.aab
+*.keystore
+*.jks
+*.dex
+*.obb
+*.so
+
+# ========================
+# IOS BUILD FILES
+# ========================
+/DerivedData/
+/Pods/
+/Podfile.lock
+/Podfile
+*.xcuserstate
+*.xcscmblueprint
+*.xcworkspace
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+/ExportedProject/
+/Builds/iOS/
+/Build/iOS/
+
+# ========================
+# CLOUD BUILD / CI
+# ========================
+/ProjectSettings/EditorBuildSettings.asset
+/ProjectSettings/ProjectSettings.asset
+/ProjectSettings/GraphicsSettings.asset
+/ProjectSettings/QualitySettings.asset
+/ProjectSettings/TagManager.asset
+/ProjectSettings/InputManager.asset
+/ProjectSettings/DynamicsManager.asset
+/ProjectSettings/TimeManager.asset
+/ProjectSettings/UnityConnectSettings.asset
+/ProjectSettings/ClusterInputManager.asset
+/ProjectSettings/AudioManager.asset
+/ProjectSettings/PhysicsManager.asset
+/ProjectSettings/Physics2DSettings.asset
+
+# ========================
+# LOGS / TEMP
+# ========================
+*.log
+*.bak
+*.tmp
+
+# ========================
+# ZIP FILES
+# ========================
+*.zip
+
+# ========================
+# LOCAL ONLY
+# ========================
+/Builds/
+/Build/
+*.orig
