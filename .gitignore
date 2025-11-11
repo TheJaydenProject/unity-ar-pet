@@ -54,7 +54,7 @@ firebase_config.js
 # FIREBASE / GOOGLE SERVICES
 # ========================
 # Android
-/google-services.json
+/Assets/google-services.json
 
 # iOS
 /GoogleService-Info.plist
