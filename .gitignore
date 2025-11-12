@@ -89,6 +89,9 @@ serviceAccountKey.json
 /Assets/StreamingAssets/AssetBundles/*
 *.unitypackage
 
+/Assets/StreamingAssets/.env.meta
+/Assets/google-services.json.meta
+
 # Ignore Firebase desktop plugin binaries
 /Assets/Firebase/Plugins/x86_64/
 /Assets/Firebase/Plugins/x86_64/*.bundle
