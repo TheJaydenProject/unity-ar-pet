@@ -91,6 +91,8 @@ serviceAccountKey.json
 
 /Assets/StreamingAssets/.env.meta
 /Assets/google-services.json.meta
+/Assets/StreamingAssets/google-services-desktop.json
+/Assets/StreamingAssets/google-services-desktop.json.meta
 
 # Ignore Firebase desktop plugin binaries
 /Assets/Firebase/Plugins/x86_64/
