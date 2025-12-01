@@ -23,7 +23,7 @@ MonoBehaviour:
     m_SerializedTextureGuid:
       m_GuidLow: 2550269741304921832
       m_GuidHigh: 9333200541517773723
-    m_Size: {x: 0.1, y: 0.1}
+    m_Size: {x: 1, y: 1}
     m_SpecifySize: 1
     m_Name: pet
     m_Texture: {fileID: 0}
