@@ -209,7 +209,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -3144,7 +3144,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 737158175}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 974756805}
+        m_TargetAssemblyTypeName: DogAnimationController, Assembly-CSharp
+        m_MethodName: set_name
+        m_Mode: 5
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: PlayRollOver()
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &737158175
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5081,6 +5093,18 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &974756805
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 974756800}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1155aac6444d2594896637b2a6314bf6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &984069240
 GameObject:
   m_ObjectHideFlags: 0
@@ -6343,6 +6367,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 9003206136414204834, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 974756804}
+    - targetCorrespondingSourceObject: {fileID: 9003206136414204834, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 974756805}
   m_SourcePrefab: {fileID: 100100000, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
 --- !u!1 &1165606563 stripped
 GameObject:
@@ -7926,7 +7953,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -8897,7 +8924,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
