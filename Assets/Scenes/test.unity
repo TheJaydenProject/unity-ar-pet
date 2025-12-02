@@ -5059,6 +5059,28 @@ MonoBehaviour:
   affection: 1
   health: 100
   healthDecreaseRate: 2
+--- !u!95 &974756804
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 974756800}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: b3895a8282538db4caa091a464c2b514, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &984069240
 GameObject:
   m_ObjectHideFlags: 0
@@ -6299,6 +6321,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -1853094968961178454, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
+      propertyPath: m_TargetDisplay
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
       propertyPath: m_Name
       value: pet
@@ -6314,6 +6340,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 9003206136414204834, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 974756803}
+    - targetCorrespondingSourceObject: {fileID: 9003206136414204834, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 974756804}
   m_SourcePrefab: {fileID: 100100000, guid: 8664a9fcd8577d74a89ed1d799ddc09c, type: 3}
 --- !u!1 &1165606563 stripped
 GameObject:
@@ -10423,6 +10452,7 @@ GameObject:
   - component: {fileID: 2077893369}
   - component: {fileID: 2077893368}
   - component: {fileID: 2077893367}
+  - component: {fileID: 2077893371}
   m_Layer: 5
   m_Name: Menu
   m_TagString: Untagged
@@ -10516,6 +10546,19 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &2077893371
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2077893366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 103fbe2179c5dc94981a121ac500837e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dog: {fileID: 974756803}
 --- !u!1 &2086985258
 GameObject:
   m_ObjectHideFlags: 0
