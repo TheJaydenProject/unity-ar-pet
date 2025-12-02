@@ -14,10 +14,6 @@ public class ImageTracker : MonoBehaviour
 
     private Dictionary<string, GameObject> spawnedPrefabs = new Dictionary<string, GameObject>();
 
-    private Dictionary<GameObject, GameObject> spawnedObjects = new Dictionary<GameObject, GameObject>();
-
-    private string[] someArray = new string[]{"Image1", "Image2", "Image3"};
-
     private void Start()
     {
         if (trackedImageManager != null)
@@ -31,11 +27,10 @@ public class ImageTracker : MonoBehaviour
     {
         foreach (GameObject prefab in placeablePrefabs)
         {
-            GameObject newPrefab = Instantiate(prefab);
+            GameObject newPrefab = Instantiate(prefab, Vector3.zero, Quaternion.identity);
             newPrefab.name = prefab.name;
             newPrefab.SetActive(false);
             spawnedPrefabs.Add(prefab.name, newPrefab);
-            spawnedObjects.Add(newPrefab, prefab);
         }
     }
 
@@ -75,9 +70,8 @@ public class ImageTracker : MonoBehaviour
                 {
                     Debug.Log("Enabling associated content: " + spawnedPrefabs[trackedImage.referenceImage.name].name);
                     spawnedPrefabs[trackedImage.referenceImage.name].transform.SetParent(trackedImage.transform);
-                    spawnedPrefabs[trackedImage.referenceImage.name].transform.localPosition = spawnedObjects[spawnedPrefabs[trackedImage.referenceImage.name]].transform.localPosition;
-                    spawnedPrefabs[trackedImage.referenceImage.name].transform.localRotation = spawnedObjects[spawnedPrefabs[trackedImage.referenceImage.name]].transform.localRotation;
-
+                    spawnedPrefabs[trackedImage.referenceImage.name].transform.localPosition = Vector3.zero;
+                    spawnedPrefabs[trackedImage.referenceImage.name].transform.localRotation = Quaternion.identity;
                     spawnedPrefabs[trackedImage.referenceImage.name].SetActive(true);
                 }
             }
