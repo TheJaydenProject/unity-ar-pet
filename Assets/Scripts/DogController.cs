@@ -9,9 +9,11 @@ public class DogController : MonoBehaviour
         DogManager.Instance?.RegisterDog(this);
     }
 
-    public void Play()
+    // Play with outcome decided by DogManager
+    public void Play(bool failed)
     {
-        StartAction("PlayTrigger");
+        string trigger = failed ? "PlayFailTrigger" : "PlayTrigger";
+        StartAction(trigger);
     }
 
     public void Rest()
@@ -39,6 +41,6 @@ public class DogController : MonoBehaviour
     // Called by Animation Events at the end of Play/Rest/Feed clips
     public void OnActionAnimationEnd()
     {
-        DogManager.Instance?.SetBusy(false);  // re-enable buttons
+        DogManager.Instance?.SetBusy(false);  // re-enable buttons and resolve action
     }
 }
