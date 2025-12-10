@@ -79,9 +79,14 @@ public class StickyImageTracker : MonoBehaviour
 
         if (state == TrackingState.Tracking)
         {
-            // Good tracking: snap object to image pose and show it
-            obj.transform.position = trackedImage.transform.position;
+            Vector3 localOffset = new Vector3(0f, 0.35f, 0f);
+
+            obj.transform.position =
+                trackedImage.transform.position +
+                trackedImage.transform.rotation * localOffset;
+
             obj.transform.rotation = trackedImage.transform.rotation;
+
             obj.SetActive(true);
 
             hasLocked[imageName] = true;   // from now on we never hide it
