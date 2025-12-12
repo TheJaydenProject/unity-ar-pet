@@ -45,6 +45,9 @@ public class DogManager : MonoBehaviour
     private ActionType pendingAction = ActionType.None;
     private Coroutine panelRoutine;
 
+    // Track affection gain for Firebase logging
+    private int lastAffectionGain = 0;
+
     private enum ActionType
     {
         None,
@@ -79,6 +82,13 @@ public class DogManager : MonoBehaviour
 
         RecalculateFailChance();
         UpdateButtonInteractable();
+
+        // START NEW GAME SESSION
+        if (FirebaseDatabaseManager.Instance != null)
+        {
+            FirebaseDatabaseManager.Instance.StartNewSession();
+            Debug.Log("[DogManager] New Firebase session started");
+        }
     }
 
     // Called by DogController.OnEnable
@@ -170,10 +180,18 @@ public class DogManager : MonoBehaviour
 
         // One turn has been spent
         CurrentTurn++;
+        LogCurrentTurnToFirebase();
 
         if (CurrentTurn >= maxTurns)
         {
             UpdateButtonInteractable(); // disable the buttons
+
+            // END FIREBASE SESSION
+            if (FirebaseDatabaseManager.Instance != null)
+            {
+                FirebaseDatabaseManager.Instance.EndSession(dogStats.affection);
+                Debug.Log("[DogManager] Game ended. Session saved to Firebase");
+            }
 
             // Show the Game Over panel
             if (gameOverPanel != null)
@@ -196,9 +214,11 @@ public class DogManager : MonoBehaviour
         dogStats.energy -= 20f;
         dogStats.hunger -= 15f;
 
-        // Random affection gain between 1 and 12 (inclusive)
-        int affectionGain = Random.Range(1, 13);
+        // Random affection gain between 5 and 12 (inclusive)
+        int affectionGain = Random.Range(5, 13);
         dogStats.affection += affectionGain;
+
+        lastAffectionGain = affectionGain;
 
         ClampStats();
 
@@ -217,6 +237,8 @@ public class DogManager : MonoBehaviour
         dogStats.hunger -= 10f;
         // No affection loss on failure
 
+        lastAffectionGain = 0;
+
         ClampStats();
 
         if (playFailText != null)
@@ -232,6 +254,8 @@ public class DogManager : MonoBehaviour
         dogStats.energy += 25f;
         dogStats.hunger -= 5f;
 
+        lastAffectionGain = 0;
+
         ClampStats();
 
         if (restResultText != null)
@@ -246,7 +270,9 @@ public class DogManager : MonoBehaviour
     {
         dogStats.hunger += 35f;
         dogStats.energy += 5f;
-        dogStats.affection += 5;
+        dogStats.affection += 2;
+
+        lastAffectionGain = 2;
 
         ClampStats();
 
@@ -346,5 +372,53 @@ public class DogManager : MonoBehaviour
 
         panel.SetActive(false);
         panelRoutine = null;
+    }
+
+    // FIREBASE INTEGRATION ----------------------------------------------------
+    
+    /// <summary>
+    /// Log the current turn to Firebase with all relevant data
+    /// </summary>
+    private void LogCurrentTurnToFirebase()
+    {
+        if (FirebaseDatabaseManager.Instance == null || dogStats == null)
+            return;
+
+        // Determine action and result based on what just happened
+        string action = "";
+        string result = "";
+
+        switch (pendingAction)
+        {
+            case ActionType.PlaySuccess:
+                action = "Play";
+                result = "Success";
+                break;
+                
+            case ActionType.PlayFail:
+                action = "Play";
+                result = "Failed";
+                break;
+                
+            case ActionType.Rest:
+                action = "Rest";
+                result = "Success";
+                break;
+                
+            case ActionType.Feed:
+                action = "Feed";
+                result = "Success";
+                break;
+        }
+
+        // Log turn to Firebase
+        FirebaseDatabaseManager.Instance.LogTurn(
+            CurrentTurn,
+            action,
+            result,
+            lastAffectionGain,
+            dogStats.energy,
+            dogStats.hunger
+        );
     }
 }
