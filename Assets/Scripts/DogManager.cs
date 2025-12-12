@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -17,8 +18,18 @@ public class DogManager : MonoBehaviour
     [Header("Turn Settings")]
     [SerializeField] private int maxTurns = 25;
 
-    [Header("Feedback UI (optional)")]
-    [SerializeField] private TMP_Text resultText;   // e.g. "Play failed!" / "Play success!"
+    [Header("Result Panels")]
+    [SerializeField] private GameObject playSuccessPanel;
+    [SerializeField] private TMP_Text  playSuccessText;
+
+    [SerializeField] private GameObject playFailPanel;
+    [SerializeField] private TMP_Text  playFailText;
+
+    [SerializeField] private GameObject restResultPanel;
+    [SerializeField] private TMP_Text  restResultText;
+
+    [SerializeField] private GameObject feedResultPanel;
+    [SerializeField] private TMP_Text  feedResultText;
 
     public int CurrentTurn { get; private set; } = 0;
     public float CurrentFailChance { get; private set; } = 0f;
@@ -27,6 +38,7 @@ public class DogManager : MonoBehaviour
     private bool isBusy;
 
     private ActionType pendingAction = ActionType.None;
+    private Coroutine panelRoutine;
 
     private enum ActionType
     {
@@ -57,11 +69,11 @@ public class DogManager : MonoBehaviour
 
     private void Start()
     {
+        // ensure all panels are hidden at start
+        HideAllResultPanels();
+
         RecalculateFailChance();
         UpdateButtonInteractable();
-
-        if (resultText != null)
-            resultText.text = "";
     }
 
     // Called by DogController.OnEnable
@@ -71,7 +83,7 @@ public class DogManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by DogController.StartAction (true) and OnActionAnimationEnd (false).
+    /// Called by DogController.StartAction(true) and OnActionAnimationEnd(false).
     /// </summary>
     public void SetBusy(bool busy)
     {
@@ -101,14 +113,13 @@ public class DogManager : MonoBehaviour
         if (isBusy || currentDog == null || CurrentTurn >= maxTurns || dogStats == null)
             return;
 
-        // Use the CURRENT fail chance to decide outcome
+        // Decide success or fail based on current fail chance
         float failChance = CurrentFailChance;
         float roll = Random.Range(0f, 100f);
         bool failed = roll < failChance;
 
         pendingAction = failed ? ActionType.PlayFail : ActionType.PlaySuccess;
 
-        // Trigger correct animation (result text is set AFTER stats update)
         currentDog.Play(failed);
     }
 
@@ -157,14 +168,8 @@ public class DogManager : MonoBehaviour
 
         if (CurrentTurn >= maxTurns)
         {
-            // Out of turns → disable input; show final result
+            // Out of turns → disable input; you can add a Game Over panel later
             UpdateButtonInteractable();
-
-            if (resultText != null)
-            {
-                resultText.color = Color.white;
-                resultText.text = $"Game Over! Final Affection: {dogStats.affection}";
-            }
         }
 
         // Recalculate fail chance for the next Play
@@ -183,11 +188,12 @@ public class DogManager : MonoBehaviour
 
         ClampStats();
 
-        if (resultText != null)
+        if (playSuccessText != null)
         {
-            resultText.color = Color.white;
-            resultText.text = $"Play success! Gained {affectionGain} affection.";
+            playSuccessText.text = $"Your dog can’t stop wagging their tail! Affection +{affectionGain}";
         }
+
+        ShowResultPanelForSeconds(playSuccessPanel);
     }
 
     private void ApplyPlayFail()
@@ -195,29 +201,31 @@ public class DogManager : MonoBehaviour
         // FAILED PLAY
         dogStats.energy -= 10f;
         dogStats.hunger -= 10f;
+        // No affection loss on failure
 
         ClampStats();
 
-        if (resultText != null)
+        if (playFailText != null)
         {
-            resultText.color = Color.red;
-            resultText.text = "Play failed! Dog was too tired or hungry.";
+            playFailText.text = "Your dog seems too tired or hungry to play right now.";
         }
+
+        ShowResultPanelForSeconds(playFailPanel);
     }
 
     private void ApplyRest()
     {
         dogStats.energy += 25f;
         dogStats.hunger -= 5f;
-        dogStats.affection += 5;
 
         ClampStats();
 
-        if (resultText != null)
+        if (restResultText != null)
         {
-            resultText.color = Color.white;
-            resultText.text = "Dog had a wonderful rest. Energy +25, Hunger -5.";
+            restResultText.text = "Your dog curls up for a peaceful rest. Energy +25, Hunger −5.";
         }
+
+        ShowResultPanelForSeconds(restResultPanel);
     }
 
     private void ApplyFeed()
@@ -228,11 +236,12 @@ public class DogManager : MonoBehaviour
 
         ClampStats();
 
-        if (resultText != null)
+        if (feedResultText != null)
         {
-            resultText.color = Color.white;
-            resultText.text = "Dog enjoyed a tasty snack. Hunger +35, Energy +5.";
+            feedResultText.text = "Your dog enjoyed a tasty snack.";
         }
+
+        ShowResultPanelForSeconds(feedResultPanel);
     }
 
     private void ClampStats()
@@ -291,5 +300,37 @@ public class DogManager : MonoBehaviour
 
         // Fallback
         return 0f;
+    }
+
+    // RESULT PANEL HELPERS ----------------------------------------------------
+
+    private void HideAllResultPanels()
+    {
+        if (playSuccessPanel != null) playSuccessPanel.SetActive(false);
+        if (playFailPanel != null)    playFailPanel.SetActive(false);
+        if (restResultPanel != null)  restResultPanel.SetActive(false);
+        if (feedResultPanel != null)  feedResultPanel.SetActive(false);
+    }
+
+    private void ShowResultPanelForSeconds(GameObject panel)
+    {
+        if (panel == null) return;
+
+        // stop any previous timer
+        if (panelRoutine != null)
+            StopCoroutine(panelRoutine);
+
+        panelRoutine = StartCoroutine(ResultPanelRoutine(panel));
+    }
+
+    private IEnumerator ResultPanelRoutine(GameObject panel)
+    {
+        HideAllResultPanels();
+        panel.SetActive(true);
+
+        yield return new WaitForSeconds(3f);
+
+        panel.SetActive(false);
+        panelRoutine = null;
     }
 }
