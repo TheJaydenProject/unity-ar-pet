@@ -3,6 +3,7 @@ using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
 using System;
+using System.Linq;
 
 /// <summary>
 /// Handles all Firebase Authentication operations
@@ -31,6 +32,7 @@ public class FirebaseAuthManager : MonoBehaviour
     /// <summary>
     /// Sign up a new user with email and password
     /// Creates user profile in database using Firebase Auth UID
+    /// Now checks for duplicate display names before creating account
     /// </summary>
     public void SignUp(string email, string password, string displayName)
     {
@@ -40,34 +42,112 @@ public class FirebaseAuthManager : MonoBehaviour
             return;
         }
         
-        Debug.Log("[Auth] Creating account for: " + email);
+        Debug.Log("[Auth] Checking for duplicate display name: " + displayName);
         
-        FirebaseManager.Instance.Auth
-            .CreateUserWithEmailAndPasswordAsync(email, password)
-            .ContinueWithOnMainThread(authTask =>
+        // First check if display name already exists
+        CheckDisplayNameExists(displayName, (exists) =>
+        {
+            if (exists)
             {
-                if (authTask.IsFaulted || authTask.IsCanceled)
+                OnAuthError?.Invoke("Display name already taken. Please choose another.");
+                return;
+            }
+            
+            // Display name is unique, proceed with account creation
+            Debug.Log("[Auth] Display name available. Creating account for: " + email);
+            
+            FirebaseManager.Instance.Auth
+                .CreateUserWithEmailAndPasswordAsync(email, password)
+                .ContinueWithOnMainThread(authTask =>
                 {
-                    HandleAuthException(authTask.Exception, "Sign up");
-                    return;
-                }
-                
-                FirebaseUser user = authTask.Result.User;
-                Debug.Log("[Auth] Account created. Firebase UID: " + user.UserId);
-                
-                // Update display name in Firebase Auth
-                UserProfile profile = new UserProfile { DisplayName = displayName };
-                user.UpdateUserProfileAsync(profile).ContinueWithOnMainThread(profileTask =>
-                {
-                    if (profileTask.IsFaulted || profileTask.IsCanceled)
+                    if (authTask.IsFaulted || authTask.IsCanceled)
                     {
-                        Debug.LogWarning("[Auth] Failed to update profile: " + profileTask.Exception);
+                        HandleAuthException(authTask.Exception, "Sign up");
+                        return;
                     }
                     
-                    // Create user profile in database
-                    CreateUserProfile(user.UserId, email, displayName);
+                    FirebaseUser user = authTask.Result.User;
+                    Debug.Log("[Auth] Account created. Firebase UID: " + user.UserId);
+                    
+                    // Update display name in Firebase Auth
+                    UserProfile profile = new UserProfile { DisplayName = displayName };
+                    user.UpdateUserProfileAsync(profile).ContinueWithOnMainThread(profileTask =>
+                    {
+                        if (profileTask.IsFaulted || profileTask.IsCanceled)
+                        {
+                            Debug.LogWarning("[Auth] Failed to update profile: " + profileTask.Exception);
+                        }
+                        
+                        // Create user profile in database
+                        CreateUserProfile(user.UserId, email, displayName);
+                    });
                 });
-            });
+        });
+    }
+    
+    /// <summary>
+    /// Check if a display name already exists in the database
+    /// </summary>
+    private void CheckDisplayNameExists(string displayName, Action<bool> callback)
+    {
+        DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
+        string usersPath = FirebaseConfig.USERS_PATH;
+        
+        Debug.Log($"[Auth] Starting display name check for: '{displayName}'");
+        Debug.Log($"[Auth] Checking path: {usersPath}");
+        
+        dbRef.Child(usersPath).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                Debug.LogError("[Auth] Failed to check display name: " + task.Exception);
+                callback?.Invoke(false);
+                return;
+            }
+            
+            DataSnapshot snapshot = task.Result;
+            
+            Debug.Log($"[Auth] Snapshot exists: {snapshot.Exists}, HasChildren: {snapshot.HasChildren}");
+            Debug.Log($"[Auth] Children count: {snapshot.ChildrenCount}");
+            
+            if (!snapshot.Exists || !snapshot.HasChildren)
+            {
+                Debug.Log("[Auth] No users in database yet");
+                callback?.Invoke(false);
+                return;
+            }
+            
+            bool found = false;
+            foreach (DataSnapshot userSnapshot in snapshot.Children)
+            {
+                Debug.Log($"[Auth] Checking user: {userSnapshot.Key}");
+                
+                DataSnapshot profileSnapshot = userSnapshot.Child(FirebaseConfig.PROFILE_PATH);
+                
+                Debug.Log($"[Auth] Profile exists: {profileSnapshot.Exists}");
+                
+                if (profileSnapshot.Exists)
+                {
+                    string json = profileSnapshot.GetRawJsonValue();
+                    Debug.Log($"[Auth] Profile JSON: {json}");
+                    
+                    UserData userData = JsonUtility.FromJson<UserData>(json);
+                    
+                    Debug.Log($"[Auth] Found displayName: '{userData.displayName}' comparing with '{displayName}'");
+                    
+                    if (userData.displayName != null && 
+                        userData.displayName.Equals(displayName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.Log("[Auth] MATCH FOUND! Display name already exists!");
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            
+            Debug.Log($"[Auth] Display name check complete. Found: {found}");
+            callback?.Invoke(found);
+        });
     }
     
     /// <summary>
@@ -135,7 +215,7 @@ public class FirebaseAuthManager : MonoBehaviour
         // Create user data object
         UserData userData = new UserData
         {
-            userId = firebaseUid,
+            userId = firebaseUid,  // Use Firebase Auth UID
             email = email,
             displayName = displayName,
             createdAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
@@ -187,7 +267,6 @@ public class FirebaseAuthManager : MonoBehaviour
         
         // Try to cast to FirebaseException
         if (innerException is Firebase.FirebaseException firebaseEx)
-
         {
             errorMessage = GetAuthErrorMessage(firebaseEx);
         }

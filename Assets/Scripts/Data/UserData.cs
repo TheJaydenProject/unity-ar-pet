@@ -12,7 +12,6 @@ public class UserData
     
     public UserData()
     {
-        userId = Guid.NewGuid().ToString();
         createdAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         totalGamesPlayed = 0;
         highestAffection = 0;
