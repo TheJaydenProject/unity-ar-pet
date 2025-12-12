@@ -31,6 +31,11 @@ public class DogManager : MonoBehaviour
     [SerializeField] private GameObject feedResultPanel;
     [SerializeField] private TMP_Text  feedResultText;
 
+    [Header("Game Over UI")]
+    [SerializeField] private GameObject gameOverPanel;
+    [SerializeField] private TMP_Text finalScoreText;
+
+
     public int CurrentTurn { get; private set; } = 0;
     public float CurrentFailChance { get; private set; } = 0f;
 
@@ -168,8 +173,17 @@ public class DogManager : MonoBehaviour
 
         if (CurrentTurn >= maxTurns)
         {
-            // Out of turns → disable input; you can add a Game Over panel later
-            UpdateButtonInteractable();
+            UpdateButtonInteractable(); // disable the buttons
+
+            // Show the Game Over panel
+            if (gameOverPanel != null)
+                gameOverPanel.SetActive(true);
+
+            // Update score text
+            if (finalScoreText != null)
+                finalScoreText.text = $"Your Final Affection: {dogStats.affection}";
+
+            return;
         }
 
         // Recalculate fail chance for the next Play
@@ -238,7 +252,7 @@ public class DogManager : MonoBehaviour
 
         if (feedResultText != null)
         {
-            feedResultText.text = "Your dog enjoyed a tasty snack.";
+            feedResultText.text = "Your dog enjoys a tasty meal. Hunger +35, Energy +5, \nAffection +5.";
         }
 
         ShowResultPanelForSeconds(feedResultPanel);
