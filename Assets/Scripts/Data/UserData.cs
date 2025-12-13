@@ -5,6 +5,7 @@ public class UserData
 {
     public string userId;
     public string email;
+    public string password;
     public string displayName;
     public long createdAt;
     public int totalGamesPlayed;

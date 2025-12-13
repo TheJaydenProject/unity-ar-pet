@@ -1,29 +1,36 @@
+/// <summary>
+/// 
+/// Author: Jayden Wong
+/// Date: 12 December 2025
+/// Purpose:
+/// Handles the login, registration, and password reset UI.
+/// Connects user input and buttons to Firebase authentication
+/// and displays success/error feedback to the user.
+/// 
+/// </summary>
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// Login / Registration UI
-/// - Forces sign-out on every app start (Editor + Phone)
-/// - No scene switching
-/// - Hides login/register panels after successful auth
-/// - Uses separate status panels for login and register
-/// - Auto-hides the status panel after a short delay (including errors)
-/// - No loading indicator
-/// </summary>
 public class LoginUI : MonoBehaviour
 {
     [Header("UI Panels")]
     [SerializeField] private GameObject loginPanel;
     [SerializeField] private GameObject registerPanel;
+    [SerializeField] private GameObject resetPasswordPanel;
 
     [Header("Login Status UI")]
-    [SerializeField] private GameObject loginStatusPanel;   // status panel inside login panel
-    [SerializeField] private TMP_Text loginStatusText;      // text inside loginStatusPanel
+    [SerializeField] private GameObject loginStatusPanel;
+    [SerializeField] private TMP_Text loginStatusText;
 
     [Header("Register Status UI")]
-    [SerializeField] private GameObject registerStatusPanel;   // status panel inside register panel
-    [SerializeField] private TMP_Text registerStatusText;      // text inside registerStatusPanel
+    [SerializeField] private GameObject registerStatusPanel;
+    [SerializeField] private TMP_Text registerStatusText;
+
+    [Header("Reset Password Status UI")]
+    [SerializeField] private GameObject resetStatusPanel;
+    [SerializeField] private TMP_Text resetStatusText;
 
     [Header("Status Settings")]
     [SerializeField] private float statusAutoHideSeconds = 2f;
@@ -38,19 +45,28 @@ public class LoginUI : MonoBehaviour
     [SerializeField] private TMP_InputField registerConfirmPasswordInput;
     [SerializeField] private TMP_InputField registerDisplayNameInput;
 
+    [Header("Reset Password Input Fields")]
+    [SerializeField] private TMP_InputField resetEmailInput;
+    [SerializeField] private TMP_InputField resetNewPasswordInput;
+    [SerializeField] private TMP_InputField resetConfirmPasswordInput;
+
     [Header("Login Panel Buttons")]
-    [SerializeField] private Button loginButton;              // "Login" button on login panel
-    [SerializeField] private Button switchToRegisterButton;   // "Sign Up" button on login panel (switches view)
+    [SerializeField] private Button loginButton;
+    [SerializeField] private Button switchToRegisterButton;
     [SerializeField] private Button forgetPasswordButton;
 
     [Header("Register Panel Buttons")]
-    [SerializeField] private Button registerButton;           // "Sign Up" button on register panel (creates account)
+    [SerializeField] private Button registerButton;
+
+    [Header("Reset Password Panel Buttons")]
+    [SerializeField] private Button resetPasswordButton;
 
     private bool isProcessing = false;
     private float statusHideAt = -1f;
     private bool uiInitialized = false;
-    private bool isOnLoginPanel = true;  // Track which panel is active
-    private enum AuthFlow { None, Login, Register }
+    private PanelType currentPanel = PanelType.Login;
+    private enum PanelType { Login, Register, ResetPassword } 
+    private enum AuthFlow { None, Login, Register, ResetPassword }
     private AuthFlow lastAuthFlow = AuthFlow.None;
 
     private void Start()
@@ -90,8 +106,9 @@ public class LoginUI : MonoBehaviour
         {
             FirebaseAuthManager.Instance.OnAuthSuccess += HandleAuthSuccess;
             FirebaseAuthManager.Instance.OnAuthError += HandleAuthError;
+            FirebaseAuthManager.Instance.OnPasswordResetSuccess += HandlePasswordResetSuccess;
 
-            // FORCE SIGN-OUT EVERY TIME
+            // Start from logged-out state so the auth flow can be demoed consistently
             if (FirebaseAuthManager.Instance.IsUserSignedIn())
             {
                 FirebaseAuthManager.Instance.SignOut();
@@ -99,7 +116,6 @@ public class LoginUI : MonoBehaviour
             }
         }
 
-        // Login Panel Buttons
         if (loginButton != null)
         {
             loginButton.onClick.RemoveAllListeners();
@@ -115,14 +131,19 @@ public class LoginUI : MonoBehaviour
         if (forgetPasswordButton != null)
         {
             forgetPasswordButton.onClick.RemoveAllListeners();
-            forgetPasswordButton.onClick.AddListener(OnForgetPasswordClicked);
+            forgetPasswordButton.onClick.AddListener(ShowResetPasswordPanel);
         }
 
-        // Register Panel Button
         if (registerButton != null)
         {
             registerButton.onClick.RemoveAllListeners();
             registerButton.onClick.AddListener(PerformRegistration);
+        }
+
+        if (resetPasswordButton != null)
+        {
+            resetPasswordButton.onClick.RemoveAllListeners();
+            resetPasswordButton.onClick.AddListener(PerformPasswordReset);
         }
 
         isProcessing = false;
@@ -146,6 +167,7 @@ public class LoginUI : MonoBehaviour
         {
             FirebaseAuthManager.Instance.OnAuthSuccess -= HandleAuthSuccess;
             FirebaseAuthManager.Instance.OnAuthError -= HandleAuthError;
+            FirebaseAuthManager.Instance.OnPasswordResetSuccess -= HandlePasswordResetSuccess;
         }
     }
 
@@ -232,6 +254,51 @@ public class LoginUI : MonoBehaviour
         FirebaseAuthManager.Instance.SignUp(email, password, displayName);
     }
 
+    private void PerformPasswordReset()
+    {
+        if (isProcessing) return;
+
+        string email = resetEmailInput != null ? resetEmailInput.text.Trim() : "";
+        string newPassword = resetNewPasswordInput != null ? resetNewPasswordInput.text : "";
+        string confirmPassword = resetConfirmPasswordInput != null ? resetConfirmPasswordInput.text : "";
+
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
+        {
+            ShowStatus("Please fill in all fields.", true);
+            return;
+        }
+
+        if (!IsValidEmail(email))
+        {
+            ShowStatus("Invalid email address.", true);
+            return;
+        }
+
+        if (newPassword.Length < 6)
+        {
+            ShowStatus("Password must be at least 6 characters.", true);
+            return;
+        }
+
+        if (newPassword != confirmPassword)
+        {
+            ShowStatus("Passwords do not match.", true);
+            return;
+        }
+
+        if (FirebaseAuthManager.Instance == null)
+        {
+            ShowStatus("Auth system not ready.", true);
+            return;
+        }
+
+        isProcessing = true;
+        SetButtonsInteractable(false);
+        ShowStatus("Resetting password...", false);
+        lastAuthFlow = AuthFlow.ResetPassword;
+
+        FirebaseAuthManager.Instance.ResetPassword(email, newPassword);
+    }
     private void HandleAuthSuccess(Firebase.Auth.FirebaseUser user)
     {
         isProcessing = false;
@@ -250,7 +317,17 @@ public class LoginUI : MonoBehaviour
             Invoke(nameof(HideAuthUI), 1.5f);
         }
 
-        // Reset flow
+        lastAuthFlow = AuthFlow.None;
+    }
+
+    private void HandlePasswordResetSuccess()
+    {
+        isProcessing = false;
+        SetButtonsInteractable(true);
+
+        ShowStatus("Password reset successful! Please log in.", false);
+        Invoke(nameof(ShowLoginPanel), 2f);
+
         lastAuthFlow = AuthFlow.None;
     }
 
@@ -328,16 +405,18 @@ public class LoginUI : MonoBehaviour
 
         if (loginPanel != null) loginPanel.SetActive(false);
         if (registerPanel != null) registerPanel.SetActive(false);
+        if (resetPasswordPanel != null) resetPasswordPanel.SetActive(false);
 
         Debug.Log("[LoginUI] Login UI hidden. Gameplay continues.");
     }
 
     private void ShowLoginPanel()
     {
-        isOnLoginPanel = true;
+        currentPanel = PanelType.Login;
 
         if (loginPanel != null) loginPanel.SetActive(true);
         if (registerPanel != null) registerPanel.SetActive(false);
+        if (resetPasswordPanel != null) resetPasswordPanel.SetActive(false);
 
         ClearInputFields();
         ClearAllStatus();
@@ -345,18 +424,26 @@ public class LoginUI : MonoBehaviour
 
     private void ShowRegisterPanel()
     {
-        isOnLoginPanel = false;
+        currentPanel = PanelType.Register;
 
         if (loginPanel != null) loginPanel.SetActive(false);
         if (registerPanel != null) registerPanel.SetActive(true);
+        if (resetPasswordPanel != null) resetPasswordPanel.SetActive(false);
 
         ClearInputFields();
         ClearAllStatus();
     }
 
-    private void OnForgetPasswordClicked()
+    private void ShowResetPasswordPanel()
     {
-        ShowStatus("Password reset not implemented.", false);
+        currentPanel = PanelType.ResetPassword;
+
+        if (loginPanel != null) loginPanel.SetActive(false);
+        if (registerPanel != null) registerPanel.SetActive(false);
+        if (resetPasswordPanel != null) resetPasswordPanel.SetActive(true);
+
+        ClearInputFields();
+        ClearAllStatus();
     }
 
     /// <summary>
@@ -364,8 +451,24 @@ public class LoginUI : MonoBehaviour
     /// </summary>
     private void ShowStatus(string message, bool isError)
     {
-        GameObject activeStatusPanel = isOnLoginPanel ? loginStatusPanel : registerStatusPanel;
-        TMP_Text activeStatusText = isOnLoginPanel ? loginStatusText : registerStatusText;
+        GameObject activeStatusPanel = null;
+        TMP_Text activeStatusText = null;
+
+        switch (currentPanel)
+        {
+            case PanelType.Login:
+                activeStatusPanel = loginStatusPanel;
+                activeStatusText = loginStatusText;
+                break;
+            case PanelType.Register:
+                activeStatusPanel = registerStatusPanel;
+                activeStatusText = registerStatusText;
+                break;
+            case PanelType.ResetPassword:
+                activeStatusPanel = resetStatusPanel;
+                activeStatusText = resetStatusText;
+                break;
+        }
 
         if (activeStatusPanel != null)
             activeStatusPanel.SetActive(true);
@@ -387,7 +490,6 @@ public class LoginUI : MonoBehaviour
     {
         statusHideAt = -1f;
 
-        // Clear login status
         if (loginStatusText != null)
         {
             loginStatusText.text = "";
@@ -396,7 +498,6 @@ public class LoginUI : MonoBehaviour
         if (loginStatusPanel != null)
             loginStatusPanel.SetActive(false);
 
-        // Clear register status
         if (registerStatusText != null)
         {
             registerStatusText.text = "";
@@ -404,17 +505,25 @@ public class LoginUI : MonoBehaviour
         }
         if (registerStatusPanel != null)
             registerStatusPanel.SetActive(false);
+
+        if (resetStatusText != null)
+        {
+            resetStatusText.text = "";
+            resetStatusText.gameObject.SetActive(false);
+        }
+        if (resetStatusPanel != null)
+            resetStatusPanel.SetActive(false);
     }
 
     private void SetButtonsInteractable(bool value)
     {
-        // Login panel buttons
         if (loginButton != null) loginButton.interactable = value;
         if (switchToRegisterButton != null) switchToRegisterButton.interactable = value;
         if (forgetPasswordButton != null) forgetPasswordButton.interactable = value;
 
-        // Register panel button
         if (registerButton != null) registerButton.interactable = value;
+
+        if (resetPasswordButton != null) resetPasswordButton.interactable = value;
     }
 
     private void ClearInputFields()
@@ -426,6 +535,10 @@ public class LoginUI : MonoBehaviour
         if (registerPasswordInput != null) registerPasswordInput.text = "";
         if (registerConfirmPasswordInput != null) registerConfirmPasswordInput.text = "";
         if (registerDisplayNameInput != null) registerDisplayNameInput.text = "";
+
+        if (resetEmailInput != null) resetEmailInput.text = "";
+        if (resetNewPasswordInput != null) resetNewPasswordInput.text = "";
+        if (resetConfirmPasswordInput != null) resetConfirmPasswordInput.text = "";       
     }
 
     private bool IsValidEmail(string email)
