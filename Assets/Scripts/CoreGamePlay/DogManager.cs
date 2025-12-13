@@ -35,6 +35,9 @@ public class DogManager : MonoBehaviour
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private TMP_Text finalScoreText;
 
+    [Header("Menu Reference")]
+    [SerializeField] private MenuManager menuManager;
+
 
     public int CurrentTurn { get; private set; } = 0;
     public float CurrentFailChance { get; private set; } = 0f;
@@ -121,6 +124,50 @@ public class DogManager : MonoBehaviour
         if (feedButton != null) feedButton.interactable = canUse;
     }
 
+    /// <summary>
+    /// Called by Back button on Game Over panel
+    /// Returns to menu and resets game state
+    /// </summary>
+    public void OnBackToMenuButton()
+    {
+        // Hide game over panel
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+        
+        // Reset game state for next play
+        ResetGameState();
+        
+        // Show menu panel
+        if (menuManager != null)
+        {
+            menuManager.ShowMenuPanel();
+        }
+        else
+        {
+            Debug.LogError("[DogManager] MenuManager reference not assigned!");
+        }
+    }
+
+    /// <summary>
+    /// Reset all game variables for a new game
+    /// </summary>
+    private void ResetGameState()
+    {
+        CurrentTurn = 0;
+        
+        // Reset dog stats to starting values
+        if (dogStats != null)
+        {
+            dogStats.energy = 80f;
+            dogStats.hunger = 80f;
+            dogStats.affection = 10;
+        }
+        
+        RecalculateFailChance();
+        UpdateButtonInteractable();
+        HideAllResultPanels();
+    }
+
     // UI BUTTON HANDLERS  -----------------------------------------------------
 
     public void OnPlayButton()
@@ -199,13 +246,32 @@ public class DogManager : MonoBehaviour
 
             // Update score text
             if (finalScoreText != null)
-                finalScoreText.text = $"Your Final Affection: {dogStats.affection}";
+            {
+                string encouragement = GetEncouragementText(dogStats.affection);
+                finalScoreText.text = $"Your Final Affection: {dogStats.affection}\n\n{encouragement}";
+            }
 
             return;
         }
 
         // Recalculate fail chance for the next Play
         RecalculateFailChance();
+    }
+
+    private string GetEncouragementText(int affection)
+    {
+        if (affection >= 100)
+            return "Perfect bond!\nYour dog adores you!";
+        else if (affection >= 80)
+            return "Amazing!\nYour dog is very happy!";
+        else if (affection >= 60)
+            return "Great job!\nYour dog loves spending time with you!";
+        else if (affection >= 40)
+            return "Good effort!\nKeep building that bond!";
+        else if (affection >= 20)
+            return "Not bad!\nTry balancing energy and hunger better!";
+        else
+            return "Keep trying!\nEvery bond takes time to build!";
     }
 
     private void ApplyPlaySuccess()
@@ -235,15 +301,15 @@ public class DogManager : MonoBehaviour
         // FAILED PLAY
         dogStats.energy -= 10f;
         dogStats.hunger -= 10f;
-        // No affection loss on failure
+        dogStats.affection -= 3;
 
-        lastAffectionGain = 0;
+        lastAffectionGain = -3;
 
         ClampStats();
 
         if (playFailText != null)
         {
-            playFailText.text = "Your dog seems too tired or hungry to play right now.";
+            playFailText.text = "Your dog seems too tired or hungry to play right now. Affection -3";
         }
 
         ShowResultPanelForSeconds(playFailPanel);
