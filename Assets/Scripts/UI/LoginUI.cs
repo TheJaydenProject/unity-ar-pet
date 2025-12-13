@@ -60,6 +60,8 @@ public class LoginUI : MonoBehaviour
 
     [Header("Reset Password Panel Buttons")]
     [SerializeField] private Button resetPasswordButton;
+    [Header("Menu Manager Reference")]
+    [SerializeField] private MenuManager menuManager;
 
     private bool isProcessing = false;
     private float statusHideAt = -1f;
@@ -407,7 +409,25 @@ public class LoginUI : MonoBehaviour
         if (registerPanel != null) registerPanel.SetActive(false);
         if (resetPasswordPanel != null) resetPasswordPanel.SetActive(false);
 
-        Debug.Log("[LoginUI] Login UI hidden. Gameplay continues.");
+        Debug.Log("[LoginUI] Login UI hidden. Showing menu...");
+        
+        // Show the menu panel
+        if (menuManager != null)
+        {
+            menuManager.ShowMenuPanel();
+        }
+        else
+        {
+            Debug.LogError("[LoginUI] MenuManager reference not assigned!");
+        }
+    }
+
+    /// <summary>
+    /// Called by MenuManager when user signs out
+    /// </summary>
+    public void ShowLoginPanelFromMenu()
+    {
+        ShowLoginPanel();
     }
 
     private void ShowLoginPanel()
