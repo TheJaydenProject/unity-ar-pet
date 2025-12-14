@@ -247,6 +247,10 @@ public class FirebaseDatabaseManager : MonoBehaviour
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         string leaderboardPath = FirebaseConfig.LEADERBOARD_PATH;
         
+        Debug.Log("[DatabaseManager] Starting FetchLeaderboard for path: " + leaderboardPath);
+        
+        dbRef.Child(leaderboardPath).KeepSynced(false);
+        
         dbRef.Child(leaderboardPath)
             .OrderByChild("highestAffection")
             .LimitToLast(limit)
@@ -261,19 +265,42 @@ public class FirebaseDatabaseManager : MonoBehaviour
                 }
                 
                 DataSnapshot snapshot = task.Result;
+                Debug.Log("[DatabaseManager] Snapshot exists: " + snapshot.Exists);
+                Debug.Log("[DatabaseManager] Snapshot has children: " + snapshot.HasChildren);
+                Debug.Log("[DatabaseManager] Children count: " + snapshot.ChildrenCount);
+                
                 List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
                 
                 foreach (DataSnapshot child in snapshot.Children)
                 {
                     string json = child.GetRawJsonValue();
+                    Debug.Log("[DatabaseManager] Raw JSON from Firebase: " + json);
+                    
                     LeaderboardEntry entry = JsonUtility.FromJson<LeaderboardEntry>(json);
-                    entries.Add(entry);
+                    
+                    if (entry != null)
+                    {
+                        Debug.Log($"[DatabaseManager] Parsed entry: userId={entry.userId}, displayName={entry.displayName}, highestAffection={entry.highestAffection}");
+                        entries.Add(entry);
+                    }
+                    else
+                    {
+                        Debug.LogError("[DatabaseManager] Failed to parse entry from JSON: " + json);
+                    }
                 }
                 
                 // Sort by highest affection (descending)
                 entries.Sort((a, b) => b.highestAffection.CompareTo(a.highestAffection));
                 
                 Debug.Log("[DatabaseManager] Leaderboard loaded: " + entries.Count + " entries");
+                
+                // Log each entry before sending to UI
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    Debug.Log($"[DatabaseManager] Entry {i}: {entries[i].displayName} - {entries[i].highestAffection}");
+                }
+                
+                Debug.Log("[DatabaseManager] Invoking OnLeaderboardLoaded event...");
                 OnLeaderboardLoaded?.Invoke(entries);
             });
     }
