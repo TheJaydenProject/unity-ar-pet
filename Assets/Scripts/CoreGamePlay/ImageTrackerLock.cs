@@ -11,6 +11,9 @@ public class StickyImageTracker : MonoBehaviour
     [Header("Prefabs spawned for reference images")]
     [SerializeField] private GameObject[] placeablePrefabs;
 
+    [Header("Spawn Root (auto-created if null)")]
+    [SerializeField] private Transform spawnedRoot;
+
     // One instance per reference image name
     private readonly Dictionary<string, GameObject> spawnedPrefabs =
         new Dictionary<string, GameObject>();
@@ -19,6 +22,29 @@ public class StickyImageTracker : MonoBehaviour
     private readonly Dictionary<string, bool> hasLocked =
         new Dictionary<string, bool>();
 
+    /// <summary>
+    /// Reset all spawned objects (called when returning to menu)
+    /// </summary>
+    public void ResetSpawnedObjects()
+    {
+        foreach (var kvp in spawnedPrefabs)
+        {
+            if (kvp.Value != null)
+            {
+                kvp.Value.SetActive(false);
+            }
+        }
+        
+        // Reset locked states so they can be detected again
+        var keys = new System.Collections.Generic.List<string>(hasLocked.Keys);
+        foreach (var key in keys)
+        {
+            hasLocked[key] = false;
+        }
+        
+        Debug.Log("[StickyImageTracker] All spawned objects reset");
+    }
+
     void Start()
     {
         if (trackedImageManager == null)
@@ -26,6 +52,15 @@ public class StickyImageTracker : MonoBehaviour
             Debug.LogError("StickyImageTracker: trackedImageManager is not assigned.");
             return;
         }
+
+        // Create an inactive root so instantiated prefabs don't run OnEnable yet
+        if (spawnedRoot == null)
+        {
+            var rootGO = new GameObject("SpawnedPrefabsRoot");
+            spawnedRoot = rootGO.transform;
+        }
+        if (spawnedRoot.gameObject.activeSelf)
+            spawnedRoot.gameObject.SetActive(false);
 
         SetupPrefabs();
         trackedImageManager.trackablesChanged.AddListener(OnImagesChanged);
@@ -45,7 +80,8 @@ public class StickyImageTracker : MonoBehaviour
         {
             if (prefab == null) continue;
 
-            GameObject instance = Instantiate(prefab, Vector3.zero, Quaternion.identity);
+            GameObject instance = Instantiate(prefab, spawnedRoot);
+            instance.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             instance.name = prefab.name;
             instance.SetActive(false);
 
@@ -79,6 +115,9 @@ public class StickyImageTracker : MonoBehaviour
 
         if (state == TrackingState.Tracking)
         {
+            // Ensure the root is active so children can be activated
+            if (spawnedRoot != null && !spawnedRoot.gameObject.activeSelf)
+                spawnedRoot.gameObject.SetActive(true);
             Vector3 localOffset = new Vector3(0f, 0.35f, 0f);
 
             obj.transform.position =

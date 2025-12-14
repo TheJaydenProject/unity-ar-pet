@@ -6,6 +6,7 @@
 /// Manages the main menu navigation after successful login.
 /// Handles transitions between menu, instructions, credits, and leaderboard panels.
 /// Coordinates with LoginUI for sign out flow.
+/// Manages AR and UI camera switching.
 /// 
 /// </summary>
 
@@ -41,6 +42,11 @@ public class MenuManager : MonoBehaviour
     [Header("Reference to Login UI")]
     [SerializeField] private LoginUI loginUI;
     
+    [Header("AR and Camera References")]
+    [SerializeField] private GameObject xrOrigin;
+    [SerializeField] private Camera xrCamera;
+    [SerializeField] private Camera uiCamera;
+    
     private bool isTransitioning = false;
     
     private void Start()
@@ -50,7 +56,41 @@ public class MenuManager : MonoBehaviour
         // Hide all panels initially
         HideAllPanels();
         
+        // Start with UI mode enabled (UI Camera on, XR off)
+        SetUIMode(true);
+        
         // Menu panel will be shown by LoginUI after successful login
+    }
+    
+    /// <summary>
+    /// Switch between UI Camera (menus) and XR Camera (gameplay)
+    /// </summary>
+    public void SetUIMode(bool isUIMode)
+    {
+        // Enable UI Camera for menus, disable for gameplay
+        if (uiCamera != null)
+        {
+            uiCamera.gameObject.SetActive(isUIMode);
+            
+            // Set MainCamera tag when active
+            if (isUIMode)
+                uiCamera.tag = "MainCamera";
+            else
+                uiCamera.tag = "Untagged";
+        }
+        
+        if (xrCamera != null)
+        {
+            xrCamera.gameObject.SetActive(!isUIMode);
+            
+            // Set MainCamera tag when active
+            if (!isUIMode)
+                xrCamera.tag = "MainCamera";
+            else
+                xrCamera.tag = "Untagged";
+        }
+        
+        Debug.Log($"[MenuManager] Camera mode: {(isUIMode ? "UI" : "AR")}");
     }
     
     /// <summary>
@@ -61,37 +101,55 @@ public class MenuManager : MonoBehaviour
         if (findPetButton != null)
         {
             findPetButton.onClick.RemoveAllListeners();
-            findPetButton.onClick.AddListener(OnFindPetClicked);
+            findPetButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnFindPetClicked();
+            });
         }
         
         if (creditsButton != null)
         {
             creditsButton.onClick.RemoveAllListeners();
-            creditsButton.onClick.AddListener(OnCreditsClicked);
+            creditsButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnCreditsClicked();
+            });
         }
         
         if (leaderboardButton != null)
         {
             leaderboardButton.onClick.RemoveAllListeners();
-            leaderboardButton.onClick.AddListener(OnLeaderboardClicked);
+            leaderboardButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnLeaderboardClicked();
+            });
         }
         
         if (signOutButton != null)
         {
             signOutButton.onClick.RemoveAllListeners();
-            signOutButton.onClick.AddListener(OnSignOutClicked);
+            signOutButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnSignOutClicked();
+            });
         }
         
         if (creditsBackButton != null)
         {
             creditsBackButton.onClick.RemoveAllListeners();
-            creditsBackButton.onClick.AddListener(OnCreditsBackClicked);
+            creditsBackButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnCreditsBackClicked();
+            });
         }
         
         if (leaderboardBackButton != null)
         {
             leaderboardBackButton.onClick.RemoveAllListeners();
-            leaderboardBackButton.onClick.AddListener(OnLeaderboardBackClicked);
+            leaderboardBackButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                OnLeaderboardBackClicked();
+            });
         }
     }
     
@@ -101,6 +159,12 @@ public class MenuManager : MonoBehaviour
     public void ShowMenuPanel()
     {
         HideAllPanels();
+        
+        // Switch to UI Camera (disable AR)
+        SetUIMode(true);
+
+        // Reset AR tracked objects when returning to menu
+        ResetARTrackedObjects();
         
         if (menuPanel != null)
         {
@@ -161,11 +225,14 @@ public class MenuManager : MonoBehaviour
         
         Debug.Log("[MenuManager] Find Pet clicked");
         
+        // ENABLE AR CAMERA IMMEDIATELY
+        SetUIMode(false);
+        
         // Hide menu panel
         if (menuPanel != null)
             menuPanel.SetActive(false);
         
-        // Show instructions panel
+        // Show instructions panel (now overlaid on AR view)
         if (instructionsPanel != null)
         {
             instructionsPanel.SetActive(true);
@@ -173,7 +240,7 @@ public class MenuManager : MonoBehaviour
         }
         else
         {
-            // If no instructions panel, go straight to game
+            // If no instructions panel, game is already started
             StartGame();
         }
     }
@@ -200,21 +267,13 @@ public class MenuManager : MonoBehaviour
     
     /// <summary>
     /// Start the actual gameplay
-    /// Override this or call your game start logic here
     /// </summary>
     private void StartGame()
     {
         Debug.Log("[MenuManager] Starting game...");
         
-        // TODO: Add your game start logic here
-        // For example:
-        // - Load game scene
-        // - Initialize game manager
-        // - Start first turn
-        // - Show game UI
-        
-        // Example: If you have a GameManager, you might do:
-        // GameManager.Instance.StartNewGame();
+        // Just log that we're ready
+        Debug.Log("[MenuManager] Game ready - AR camera active");
     }
     
     /// <summary>
@@ -291,7 +350,6 @@ public class MenuManager : MonoBehaviour
     
     /// <summary>
     /// Handle Sign Out button click
-    /// Signs user out and returns to login screen
     /// </summary>
     private void OnSignOutClicked()
     {
@@ -300,6 +358,12 @@ public class MenuManager : MonoBehaviour
         Debug.Log("[MenuManager] Sign Out clicked");
         
         isTransitioning = true;
+        
+        // Switch to UI Camera (disable AR)
+        SetUIMode(true);
+
+        // Reset AR tracked objects
+        ResetARTrackedObjects();
         
         // Sign out from Firebase
         if (FirebaseAuthManager.Instance != null)
@@ -319,6 +383,18 @@ public class MenuManager : MonoBehaviour
         isTransitioning = false;
     }
     
+    /// <summary>
+    /// Reset all AR tracked objects (dogs)
+    /// </summary>
+    private void ResetARTrackedObjects()
+    {
+        StickyImageTracker tracker = FindFirstObjectByType<StickyImageTracker>();
+        if (tracker != null)
+        {
+            tracker.ResetSpawnedObjects();
+        }
+    }
+
     /// <summary>
     /// Set button interactivity (useful during transitions)
     /// </summary>

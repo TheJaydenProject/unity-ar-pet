@@ -121,31 +121,46 @@ public class LoginUI : MonoBehaviour
         if (loginButton != null)
         {
             loginButton.onClick.RemoveAllListeners();
-            loginButton.onClick.AddListener(PerformLogin);
+            loginButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                PerformLogin();
+            });
         }
 
         if (switchToRegisterButton != null)
         {
             switchToRegisterButton.onClick.RemoveAllListeners();
-            switchToRegisterButton.onClick.AddListener(ShowRegisterPanel);
+            switchToRegisterButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                ShowRegisterPanel();
+            });
         }
 
         if (forgetPasswordButton != null)
         {
             forgetPasswordButton.onClick.RemoveAllListeners();
-            forgetPasswordButton.onClick.AddListener(ShowResetPasswordPanel);
+            forgetPasswordButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                ShowResetPasswordPanel();
+            });
         }
 
         if (registerButton != null)
         {
             registerButton.onClick.RemoveAllListeners();
-            registerButton.onClick.AddListener(PerformRegistration);
+            registerButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                PerformRegistration();
+            });
         }
 
         if (resetPasswordButton != null)
         {
             resetPasswordButton.onClick.RemoveAllListeners();
-            resetPasswordButton.onClick.AddListener(PerformPasswordReset);
+            resetPasswordButton.onClick.AddListener(() => {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+                PerformPasswordReset();
+            });
         }
 
         isProcessing = false;

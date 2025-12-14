@@ -98,6 +98,8 @@ public class DogManager : MonoBehaviour
     public void RegisterDog(DogController dog)
     {
         currentDog = dog;
+        UpdateButtonInteractable();
+        Debug.Log("[DogManager] Dog registered, buttons enabled");
     }
 
     /// <summary>
@@ -117,7 +119,7 @@ public class DogManager : MonoBehaviour
 
     private void UpdateButtonInteractable()
     {
-        bool canUse = !isBusy && CurrentTurn < maxTurns;
+        bool canUse = !isBusy && CurrentTurn < maxTurns && currentDog != null;
 
         if (playButton != null) playButton.interactable = canUse;
         if (restButton != null) restButton.interactable = canUse;
@@ -137,7 +139,7 @@ public class DogManager : MonoBehaviour
         // Reset game state for next play
         ResetGameState();
         
-        // Show menu panel
+        // Show menu panel (MenuManager will handle disabling XR)
         if (menuManager != null)
         {
             menuManager.ShowMenuPanel();
@@ -154,6 +156,7 @@ public class DogManager : MonoBehaviour
     private void ResetGameState()
     {
         CurrentTurn = 0;
+        currentDog = null;
         
         // Reset dog stats to starting values
         if (dogStats != null)
@@ -175,6 +178,9 @@ public class DogManager : MonoBehaviour
         if (isBusy || currentDog == null || CurrentTurn >= maxTurns || dogStats == null)
             return;
 
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+
         // Decide success or fail based on current fail chance
         float failChance = CurrentFailChance;
         float roll = Random.Range(0f, 100f);
@@ -189,6 +195,9 @@ public class DogManager : MonoBehaviour
     {
         if (isBusy || currentDog == null || CurrentTurn >= maxTurns) return;
 
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+
         pendingAction = ActionType.Rest;
         currentDog.Rest();
     }
@@ -196,6 +205,9 @@ public class DogManager : MonoBehaviour
     public void OnFeedButton()
     {
         if (isBusy || currentDog == null || CurrentTurn >= maxTurns) return;
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
 
         pendingAction = ActionType.Feed;
         currentDog.Feed();
@@ -222,16 +234,21 @@ public class DogManager : MonoBehaviour
                 ApplyFeed();
                 break;
         }
-
-        pendingAction = ActionType.None;
-
-        // One turn has been spent
+        
         CurrentTurn++;
         LogCurrentTurnToFirebase();
+
+        pendingAction = ActionType.None;
 
         if (CurrentTurn >= maxTurns)
         {
             UpdateButtonInteractable(); // disable the buttons
+
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.PlayGameOver();
+
+            if (menuManager != null)
+                menuManager.SetUIMode(true);
 
             // END FIREBASE SESSION
             if (FirebaseDatabaseManager.Instance != null)
