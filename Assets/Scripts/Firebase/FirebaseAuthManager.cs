@@ -1,13 +1,19 @@
+/// <summary>
+/// Author: Jayden Wong
+/// Date: 14 December 2025
+/// Manages all Firebase Authentication operations including user sign-up,
+/// sign-in, password reset, and display name validation.
+/// Uses Firebase's async pattern with ContinueWithOnMainThread to ensure
+/// all callbacks execute on Unity's main thread for safe UI updates.
+/// Implements a custom password reset flow using admin credentials.
+/// </summary>
+
 using UnityEngine;
 using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
 using System;
 
-/// <summary>
-/// Handles all Firebase Authentication operations
-/// Uses async pattern with ContinueWithOnMainThread
-/// </summary>
 public class FirebaseAuthManager : MonoBehaviour
 {
     public static FirebaseAuthManager Instance { get; private set; }
@@ -15,14 +21,15 @@ public class FirebaseAuthManager : MonoBehaviour
     // Events to notify UI of auth state changes
     public event Action<FirebaseUser> OnAuthSuccess;
     public event Action<string> OnAuthError;
-    public event Action OnPasswordResetSuccess;  // NEW
+    public event Action OnPasswordResetSuccess;
     
-    // Admin credentials for password reset
+    // Admin credentials for password reset functionality
     private const string ADMIN_EMAIL = "admin@admin.com";
     private const string ADMIN_PASSWORD = "password123";
     
     private void Awake()
     {
+        // Singleton pattern - ensure only one instance exists across scenes
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -34,12 +41,14 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Sign up a new user with email and password
-    /// Creates user profile in database using Firebase Auth UID
-    /// Now checks for duplicate display names before creating account
+    /// Creates a new user account with email and password.
+    /// First checks if the display name is already taken to ensure uniqueness.
+    /// On success, creates both a Firebase Auth account and a database profile
+    /// using the Firebase Auth UID as the primary key.
     /// </summary>
     public void SignUp(string email, string password, string displayName)
     {
+        // Validate Firebase initialization before attempting auth operations
         if (!FirebaseManager.Instance.IsInitialized)
         {
             OnAuthError?.Invoke("Firebase not initialized");
@@ -48,6 +57,7 @@ public class FirebaseAuthManager : MonoBehaviour
         
         Debug.Log("[Auth] Checking for duplicate display name: " + displayName);
         
+        // Step 1: Check if display name already exists in database
         CheckDisplayNameExists(displayName, (exists) =>
         {
             if (exists)
@@ -58,10 +68,12 @@ public class FirebaseAuthManager : MonoBehaviour
             
             Debug.Log("[Auth] Display name available. Creating account for: " + email);
             
+            // Step 2: Create Firebase Auth account
             FirebaseManager.Instance.Auth
                 .CreateUserWithEmailAndPasswordAsync(email, password)
                 .ContinueWithOnMainThread(authTask =>
                 {
+                    // Check if account creation failed
                     if (authTask.IsFaulted || authTask.IsCanceled)
                     {
                         HandleAuthException(authTask.Exception, "Sign up");
@@ -71,6 +83,7 @@ public class FirebaseAuthManager : MonoBehaviour
                     FirebaseUser user = authTask.Result.User;
                     Debug.Log("[Auth] Account created. Firebase UID: " + user.UserId);
                     
+                    // Step 3: Update Firebase Auth profile with display name
                     UserProfile profile = new UserProfile { DisplayName = displayName };
                     user.UpdateUserProfileAsync(profile).ContinueWithOnMainThread(profileTask =>
                     {
@@ -79,6 +92,7 @@ public class FirebaseAuthManager : MonoBehaviour
                             Debug.LogWarning("[Auth] Failed to update profile: " + profileTask.Exception);
                         }
                         
+                        // Step 4: Create database profile with user data
                         CreateUserProfile(user.UserId, email, displayName, password);
                     });
                 });
@@ -86,7 +100,9 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Check if a display name already exists in the database
+    /// Searches the database to check if a display name is already in use.
+    /// Performs case-insensitive comparison to prevent near-duplicate names.
+    /// Uses callback pattern to return async result.
     /// </summary>
     private void CheckDisplayNameExists(string displayName, Action<bool> callback)
     {
@@ -96,11 +112,13 @@ public class FirebaseAuthManager : MonoBehaviour
         Debug.Log($"[Auth] Starting display name check for: '{displayName}'");
         Debug.Log($"[Auth] Checking path: {usersPath}");
         
+        // Fetch all users from database
         dbRef.Child(usersPath).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
             {
                 Debug.LogError("[Auth] Failed to check display name: " + task.Exception);
+                // On error, allow creation to proceed (fail open)
                 callback?.Invoke(false);
                 return;
             }
@@ -110,6 +128,7 @@ public class FirebaseAuthManager : MonoBehaviour
             Debug.Log($"[Auth] Snapshot exists: {snapshot.Exists}, HasChildren: {snapshot.HasChildren}");
             Debug.Log($"[Auth] Children count: {snapshot.ChildrenCount}");
             
+            // If no users exist yet, name is available
             if (!snapshot.Exists || !snapshot.HasChildren)
             {
                 Debug.Log("[Auth] No users in database yet");
@@ -117,6 +136,7 @@ public class FirebaseAuthManager : MonoBehaviour
                 return;
             }
             
+            // Search through all users to check for matching display name
             bool found = false;
             foreach (DataSnapshot userSnapshot in snapshot.Children)
             {
@@ -128,6 +148,7 @@ public class FirebaseAuthManager : MonoBehaviour
                 
                 if (profileSnapshot.Exists)
                 {
+                    // Parse user data from JSON
                     string json = profileSnapshot.GetRawJsonValue();
                     Debug.Log($"[Auth] Profile JSON: {json}");
                     
@@ -135,6 +156,7 @@ public class FirebaseAuthManager : MonoBehaviour
                     
                     Debug.Log($"[Auth] Found displayName: '{userData.displayName}' comparing with '{displayName}'");
                     
+                    // Case-insensitive comparison to catch variants like "John" vs "john"
                     if (userData.displayName != null && 
                         userData.displayName.Equals(displayName, StringComparison.OrdinalIgnoreCase))
                     {
@@ -151,7 +173,8 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Sign in existing user with email and password
+    /// Authenticates an existing user with email and password.
+    /// On success, triggers OnAuthSuccess event for UI to respond.
     /// </summary>
     public void SignIn(string email, string password)
     {
@@ -163,6 +186,7 @@ public class FirebaseAuthManager : MonoBehaviour
         
         Debug.Log("[Auth] Signing in: " + email);
         
+        // Attempt to sign in with provided credentials
         FirebaseManager.Instance.Auth
             .SignInWithEmailAndPasswordAsync(email, password)
             .ContinueWithOnMainThread(authTask =>
@@ -176,13 +200,19 @@ public class FirebaseAuthManager : MonoBehaviour
                 FirebaseUser user = authTask.Result.User;
                 Debug.Log("[Auth] Signed in successfully. UID: " + user.UserId);
                 
+                // Notify UI that authentication succeeded
                 OnAuthSuccess?.Invoke(user);
             });
     }
     
     /// <summary>
-    /// Reset password for a user
-    /// Uses admin account to verify, stores new password hash in database
+    /// Resets a user's password using a multi-step process:
+    /// 1. Sign in as admin to gain database access
+    /// 2. Find target user and retrieve their old password
+    /// 3. Sign in as target user using old password
+    /// 4. Update password in Firebase Auth
+    /// 5. Update password in database for future resets
+    /// 6. Sign out and notify UI of success
     /// </summary>
     public void ResetPassword(string targetEmail, string newPassword)
     {
@@ -194,7 +224,7 @@ public class FirebaseAuthManager : MonoBehaviour
         
         Debug.Log("[Auth] Starting password reset process for: " + targetEmail);
         
-        // Step 1: Sign in as admin to verify we have permission
+        // Step 1: Sign in as admin to verify permissions
         Debug.Log("[Auth] Signing in as admin...");
         FirebaseManager.Instance.Auth
             .SignInWithEmailAndPasswordAsync(ADMIN_EMAIL, ADMIN_PASSWORD)
@@ -209,7 +239,7 @@ public class FirebaseAuthManager : MonoBehaviour
                 
                 Debug.Log("[Auth] Admin logged in successfully");
                 
-                // Step 2: Find the target user in database
+                // Step 2: Search database for target user and their stored password
                 FindUserByEmailWithOldPassword(targetEmail, (userId, oldPassword) =>
                 {
                     if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(oldPassword))
@@ -223,10 +253,10 @@ public class FirebaseAuthManager : MonoBehaviour
                     Debug.Log("[Auth] User found with ID: " + userId);
                     Debug.Log("[Auth] Signing out admin and signing in as target user...");
                     
-                    // Step 3: Sign out admin
+                    // Step 3: Sign out admin to switch accounts
                     FirebaseManager.Instance.SignOut();
                     
-                    // Step 4: Sign in as target user with their old password
+                    // Step 4: Sign in as target user using their old password
                     FirebaseManager.Instance.Auth
                         .SignInWithEmailAndPasswordAsync(targetEmail, oldPassword)
                         .ContinueWithOnMainThread(userLoginTask =>
@@ -241,7 +271,7 @@ public class FirebaseAuthManager : MonoBehaviour
                             FirebaseUser targetUser = userLoginTask.Result.User;
                             Debug.Log("[Auth] Signed in as target user: " + targetUser.Email);
                             
-                            // Step 5: Update their password in Firebase Auth
+                            // Step 5: Update password in Firebase Authentication system
                             targetUser.UpdatePasswordAsync(newPassword).ContinueWithOnMainThread(updateTask =>
                             {
                                 if (updateTask.IsFaulted || updateTask.IsCanceled)
@@ -254,10 +284,10 @@ public class FirebaseAuthManager : MonoBehaviour
                                 
                                 Debug.Log("[Auth] Password updated successfully in Firebase Auth");
                                 
-                                // Step 6: Update password in database for future resets
+                                // Step 6: Update password in database for future reset operations
                                 UpdatePasswordInDatabase(userId, newPassword, () =>
                                 {
-                                    // Step 7: Sign out the target user
+                                    // Step 7: Sign out target user and complete reset
                                     Debug.Log("[Auth] Signing out target user...");
                                     FirebaseManager.Instance.SignOut();
                                     Debug.Log("[Auth] Password reset complete!");
@@ -271,7 +301,8 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Find user by email and get their current password from database
+    /// Searches database for a user by email and retrieves their stored password.
+    /// Returns both userId and password via callback for password reset flow.
     /// </summary>
     private void FindUserByEmailWithOldPassword(string email, Action<string, string> callback)
     {
@@ -280,6 +311,7 @@ public class FirebaseAuthManager : MonoBehaviour
         
         Debug.Log($"[Auth] Searching for user with email: {email}");
         
+        // Fetch all users from database
         dbRef.Child(usersPath).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
@@ -301,20 +333,23 @@ public class FirebaseAuthManager : MonoBehaviour
             string foundUserId = null;
             string foundPassword = null;
             
+            // Search through all users for matching email
             foreach (DataSnapshot userSnapshot in snapshot.Children)
             {
                 DataSnapshot profileSnapshot = userSnapshot.Child(FirebaseConfig.PROFILE_PATH);
                 
                 if (profileSnapshot.Exists)
                 {
+                    // Parse user data and check for email match
                     string json = profileSnapshot.GetRawJsonValue();
                     UserData userData = JsonUtility.FromJson<UserData>(json);
                     
+                    // Case-insensitive email comparison
                     if (userData.email != null && 
                         userData.email.Equals(email, StringComparison.OrdinalIgnoreCase))
                     {
                         foundUserId = userData.userId;
-                        foundPassword = userData.password; // Get stored password
+                        foundPassword = userData.password;
                         Debug.Log($"[Auth] Found matching user: {foundUserId}");
                         break;
                     }
@@ -326,14 +361,15 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Update password in database
+    /// Updates the stored password in the database profile.
+    /// Reads existing profile, modifies password field, and writes back.
     /// </summary>
     private void UpdatePasswordInDatabase(string userId, string newPassword, Action onComplete)
     {
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         string profilePath = FirebaseConfig.USERS_PATH + "/" + userId + "/" + FirebaseConfig.PROFILE_PATH;
         
-        // Read existing profile
+        // Read existing profile from database
         dbRef.Child(profilePath).GetValueAsync().ContinueWithOnMainThread(readTask =>
         {
             if (readTask.IsFaulted || readTask.IsCanceled)
@@ -351,14 +387,14 @@ public class FirebaseAuthManager : MonoBehaviour
                 return;
             }
             
-            // Get existing user data
+            // Parse existing user data
             string json = snapshot.GetRawJsonValue();
             UserData userData = JsonUtility.FromJson<UserData>(json);
             
-            // Update password field
+            // Update only the password field
             userData.password = newPassword;
             
-            // Save back to database
+            // Write updated data back to database
             string updatedJson = JsonUtility.ToJson(userData);
             dbRef.Child(profilePath).SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
             {
@@ -377,7 +413,7 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Sign out current user
+    /// Signs out the currently authenticated user.
     /// </summary>
     public void SignOut()
     {
@@ -385,7 +421,7 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Get current authenticated user
+    /// Returns the currently authenticated Firebase user, or null if none.
     /// </summary>
     public FirebaseUser GetCurrentUser()
     {
@@ -393,7 +429,7 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Check if a user is currently signed in
+    /// Checks if any user is currently signed in.
     /// </summary>
     public bool IsUserSignedIn()
     {
@@ -401,29 +437,33 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Create initial user profile in database
-    /// Uses Firebase Auth UID as the user ID
-    /// NOW STORES PASSWORD for demo password reset functionality
+    /// Creates initial user profile in the database after successful sign-up.
+    /// Stores user data including email, display name, and password (for demo
+    /// password reset functionality). Uses Firebase Auth UID as the primary key.
     /// </summary>
     private void CreateUserProfile(string firebaseUid, string email, string displayName, string password)
     {
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         
+        // Create new user data object with initial values
         UserData userData = new UserData
         {
             userId = firebaseUid,
             email = email,
             displayName = displayName,
-            password = password,
+            password = password,  // Stored for demo password reset functionality
             createdAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             totalGamesPlayed = 0,
             highestAffection = 0
         };
         
+        // Convert to JSON for database storage
         string json = JsonUtility.ToJson(userData);
         
+        // Construct database path: users/{uid}/profile
         string path = FirebaseConfig.USERS_PATH + "/" + firebaseUid + "/" + FirebaseConfig.PROFILE_PATH;
         
+        // Write profile to database
         dbRef.Child(path).SetRawJsonValueAsync(json).ContinueWithOnMainThread(writeTask =>
         {
             if (writeTask.IsFaulted || writeTask.IsCanceled)
@@ -435,12 +475,14 @@ public class FirebaseAuthManager : MonoBehaviour
             
             Debug.Log("[Auth] User profile created in database at: " + path);
             
+            // Notify UI of successful authentication
             OnAuthSuccess?.Invoke(FirebaseManager.Instance.CurrentUser);
         });
     }
     
     /// <summary>
-    /// Handle authentication exceptions and convert to user-friendly messages
+    /// Unwraps nested exceptions and handles Firebase-specific auth errors.
+    /// Converts error codes to user-friendly messages via GetAuthErrorMessage.
     /// </summary>
     private void HandleAuthException(Exception exception, string operation)
     {
@@ -452,12 +494,14 @@ public class FirebaseAuthManager : MonoBehaviour
         
         string errorMessage = "An error occurred";
         
+        // Unwrap nested exceptions to find root cause
         Exception innerException = exception;
         while (innerException.InnerException != null)
         {
             innerException = innerException.InnerException;
         }
         
+        // Check if it's a Firebase-specific error
         if (innerException is Firebase.FirebaseException firebaseEx)
         {
             errorMessage = GetAuthErrorMessage(firebaseEx);
@@ -472,7 +516,8 @@ public class FirebaseAuthManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Convert Firebase error codes to user-friendly messages
+    /// Translates Firebase AuthError codes into user-friendly error messages.
+    /// Provides clear, actionable feedback for common authentication issues.
     /// </summary>
     private string GetAuthErrorMessage(Firebase.FirebaseException ex)
     {

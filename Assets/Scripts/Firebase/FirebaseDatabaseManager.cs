@@ -1,3 +1,13 @@
+/// <summary>
+/// Author: Jayden Wong
+/// Date: 14 December 2025
+/// Manages all Firebase Realtime Database operations for the game.
+/// Handles game session tracking (start, turn logging, end), user statistics
+/// updates (games played, high scores), and leaderboard management.
+/// Uses Firebase's async pattern with ContinueWithOnMainThread for safe
+/// Unity main thread execution of all database callbacks.
+/// </summary>
+
 using UnityEngine;
 using Firebase.Auth;
 using Firebase.Database;
@@ -5,24 +15,21 @@ using Firebase.Extensions;
 using System;
 using System.Collections.Generic;
 
-/// <summary>
-/// Handles all Firebase Realtime Database operations
-/// Manages game sessions, turn logging, and leaderboard updates
-/// </summary>
 public class FirebaseDatabaseManager : MonoBehaviour
 {
     public static FirebaseDatabaseManager Instance { get; private set; }
     
-    // Current session data
+    // Current active game session data
     private GameSession currentSession;
     private string currentUserId;
     
-    // Events
+    // Events to notify UI of database operations
     public event Action<List<LeaderboardEntry>> OnLeaderboardLoaded;
     public event Action<string> OnDatabaseError;
     
     private void Awake()
     {
+        // Singleton pattern - ensure only one instance exists across scenes
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -34,8 +41,9 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Start a new game session for the current user
-    /// Call this when the game starts
+    /// Initializes a new game session for the authenticated user.
+    /// Creates a fresh GameSession object to track turns and outcomes.
+    /// Should be called when starting a new game.
     /// </summary>
     public void StartNewSession()
     {
@@ -45,6 +53,7 @@ public class FirebaseDatabaseManager : MonoBehaviour
             return;
         }
         
+        // Store user ID and create new session object
         currentUserId = FirebaseManager.Instance.CurrentUserId;
         currentSession = new GameSession();
         
@@ -52,17 +61,20 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Log a single turn to the current session
-    /// Call this after each player action (Play, Rest, Feed)
+    /// Records a single turn in the current game session.
+    /// Captures player action, result, and character state for analytics.
+    /// If no session exists, automatically creates one.
     /// </summary>
     public void LogTurn(int turnNumber, string action, string result, int affectionGained, float energy, float hunger)
     {
+        // Auto-create session if none exists
         if (currentSession == null)
         {
             Debug.LogWarning("[DatabaseManager] No active session. Starting new session...");
             StartNewSession();
         }
         
+        // Create turn log entry and add to current session
         TurnLog turn = new TurnLog(turnNumber, action, result, affectionGained, energy, hunger);
         currentSession.turns.Add(turn);
         
@@ -70,8 +82,12 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// End the current session and save to database
-    /// Call this when the game ends (after 25 turns)
+    /// Finalizes the current game session and persists all data to Firebase.
+    /// Performs three operations:
+    /// 1. Saves complete session data with all turns
+    /// 2. Updates user profile statistics
+    /// 3. Updates leaderboard if score qualifies
+    /// Should be called when game ends (typically after 25 turns).
     /// </summary>
     public void EndSession(int finalAffection)
     {
@@ -87,33 +103,35 @@ public class FirebaseDatabaseManager : MonoBehaviour
             return;
         }
         
+        // Record end time and final score
         currentSession.endTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         currentSession.finalAffection = finalAffection;
         
         Debug.Log("[DatabaseManager] Ending session. Final affection: " + finalAffection);
         
-        // Save session to database
+        // Trigger all save operations
         SaveSessionToDatabase();
-        
-        // Update user stats
         UpdateUserStats(finalAffection);
-        
-        // Check and update leaderboard if new high score
         UpdateLeaderboardIfNeeded(finalAffection);
     }
     
     /// <summary>
-    /// Save the current session to Firebase
-    /// Path: users/{userId}/sessions/{sessionId}
+    /// Persists the current session data to Firebase.
+    /// Saves to path: users/{userId}/sessions/{sessionId}
+    /// Includes all turn logs and session metadata.
     /// </summary>
     private void SaveSessionToDatabase()
     {
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         
+        // Serialize session data to JSON
         string json = JsonUtility.ToJson(currentSession);
+        
+        // Construct database path for this session
         string path = FirebaseConfig.USERS_PATH + "/" + currentUserId + "/" + 
                      FirebaseConfig.SESSIONS_PATH + "/" + currentSession.sessionId;
         
+        // Write session data to database
         dbRef.Child(path).SetRawJsonValueAsync(json).ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
@@ -128,14 +146,16 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Update user profile stats (totalGamesPlayed, highestAffection)
+    /// Updates user profile statistics after game completion.
+    /// Increments totalGamesPlayed and updates highestAffection if new record.
+    /// Reads existing profile, modifies fields, then writes back.
     /// </summary>
     private void UpdateUserStats(int finalAffection)
     {
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         string profilePath = FirebaseConfig.USERS_PATH + "/" + currentUserId + "/" + FirebaseConfig.PROFILE_PATH;
         
-        // First, read current profile
+        // Read current profile from database
         dbRef.Child(profilePath).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
@@ -151,11 +171,11 @@ public class FirebaseDatabaseManager : MonoBehaviour
                 return;
             }
             
-            // Parse existing profile
+            // Parse existing profile data
             string json = snapshot.GetRawJsonValue();
             UserData userData = JsonUtility.FromJson<UserData>(json);
             
-            // Update stats
+            // Update statistics
             userData.totalGamesPlayed++;
             if (finalAffection > userData.highestAffection)
             {
@@ -163,7 +183,7 @@ public class FirebaseDatabaseManager : MonoBehaviour
                 Debug.Log("[DatabaseManager] New high score: " + finalAffection);
             }
             
-            // Save updated profile
+            // Write updated profile back to database
             string updatedJson = JsonUtility.ToJson(userData);
             dbRef.Child(profilePath).SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
             {
@@ -179,18 +199,20 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Update leaderboard if this is a new high score
+    /// Updates leaderboard entry if final score exceeds user's previous best.
+    /// Creates new entry if user not on leaderboard yet.
+    /// Only updates if score is higher than existing entry.
     /// </summary>
     private void UpdateLeaderboardIfNeeded(int finalAffection)
     {
         DatabaseReference dbRef = FirebaseManager.Instance.DatabaseRef;
         string leaderboardPath = FirebaseConfig.LEADERBOARD_PATH + "/" + currentUserId;
         
-        // Get current user info
+        // Get current user's display name for leaderboard entry
         FirebaseUser user = FirebaseManager.Instance.CurrentUser;
         string displayName = user.DisplayName ?? user.Email;
         
-        // First check if entry exists
+        // Check if user already has a leaderboard entry
         dbRef.Child(leaderboardPath).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
@@ -204,12 +226,12 @@ public class FirebaseDatabaseManager : MonoBehaviour
             
             if (!snapshot.Exists)
             {
-                // No entry yet, create new one
+                // No existing entry - this is user's first qualifying score
                 shouldUpdate = true;
             }
             else
             {
-                // Entry exists, check if new score is higher
+                // Entry exists - check if new score beats old one
                 string json = snapshot.GetRawJsonValue();
                 LeaderboardEntry existingEntry = JsonUtility.FromJson<LeaderboardEntry>(json);
                 
@@ -219,12 +241,14 @@ public class FirebaseDatabaseManager : MonoBehaviour
                 }
             }
             
+            // Only write to database if score qualifies
             if (shouldUpdate)
             {
-                // Create new leaderboard entry
+                // Create new leaderboard entry with current score
                 LeaderboardEntry newEntry = new LeaderboardEntry(currentUserId, displayName, finalAffection);
                 string entryJson = JsonUtility.ToJson(newEntry);
                 
+                // Write to leaderboard path
                 dbRef.Child(leaderboardPath).SetRawJsonValueAsync(entryJson).ContinueWithOnMainThread(writeTask =>
                 {
                     if (writeTask.IsFaulted || writeTask.IsCanceled)
@@ -240,7 +264,9 @@ public class FirebaseDatabaseManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Fetch top leaderboard entries
+    /// Fetches top leaderboard entries ordered by highest affection score.
+    /// Uses Firebase's OrderByChild and LimitToLast for efficient querying.
+    /// Results are sorted descending and returned via OnLeaderboardLoaded event.
     /// </summary>
     public void FetchLeaderboard(int limit = 10)
     {
@@ -249,8 +275,10 @@ public class FirebaseDatabaseManager : MonoBehaviour
         
         Debug.Log("[DatabaseManager] Starting FetchLeaderboard for path: " + leaderboardPath);
         
+        // Disable keep synced to avoid unnecessary background syncing
         dbRef.Child(leaderboardPath).KeepSynced(false);
         
+        // Query database: order by highestAffection, get top N entries
         dbRef.Child(leaderboardPath)
             .OrderByChild("highestAffection")
             .LimitToLast(limit)
@@ -271,6 +299,7 @@ public class FirebaseDatabaseManager : MonoBehaviour
                 
                 List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
                 
+                // Parse each child snapshot into LeaderboardEntry object
                 foreach (DataSnapshot child in snapshot.Children)
                 {
                     string json = child.GetRawJsonValue();
@@ -289,18 +318,20 @@ public class FirebaseDatabaseManager : MonoBehaviour
                     }
                 }
                 
-                // Sort by highest affection (descending)
+                // Sort entries by score in descending order (highest first)
                 entries.Sort((a, b) => b.highestAffection.CompareTo(a.highestAffection));
                 
                 Debug.Log("[DatabaseManager] Leaderboard loaded: " + entries.Count + " entries");
                 
-                // Log each entry before sending to UI
+                // Log each entry for debugging
                 for (int i = 0; i < entries.Count; i++)
                 {
                     Debug.Log($"[DatabaseManager] Entry {i}: {entries[i].displayName} - {entries[i].highestAffection}");
                 }
                 
                 Debug.Log("[DatabaseManager] Invoking OnLeaderboardLoaded event...");
+                
+                // Notify subscribers with sorted leaderboard data
                 OnLeaderboardLoaded?.Invoke(entries);
             });
     }
