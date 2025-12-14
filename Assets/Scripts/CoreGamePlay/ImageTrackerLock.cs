@@ -128,16 +128,16 @@ public class StickyImageTracker : MonoBehaviour
 
             obj.SetActive(true);
 
-            hasLocked[imageName] = true;   // from now on we never hide it
+            hasLocked[imageName] = true;   // don't hide it
         }
-        else // Limited or None
+        else
         {
             // Before first good detection we can hide it
             if (!hasLocked[imageName])
             {
                 obj.SetActive(false);
             }
-            // After first good detection we do nothing:
+            // After first good detection
             // object stays visible where it was last placed
         }
     }
