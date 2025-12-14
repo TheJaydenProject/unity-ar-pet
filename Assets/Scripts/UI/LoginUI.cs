@@ -1,12 +1,9 @@
 /// <summary>
-/// 
 /// Author: Jayden Wong
 /// Date: 12 December 2025
 /// Purpose:
 /// Handles the login, registration, and password reset UI.
-/// Connects user input and buttons to Firebase authentication
-/// and displays success/error feedback to the user.
-/// 
+/// Connects UI input/buttons to Firebase auth and displays feedback.
 /// </summary>
 
 using UnityEngine;
@@ -424,7 +421,6 @@ public class LoginUI : MonoBehaviour
         if (registerPanel != null) registerPanel.SetActive(false);
         if (resetPasswordPanel != null) resetPasswordPanel.SetActive(false);
 
-        Debug.Log("[LoginUI] Login UI hidden. Showing menu...");
         
         // Show the menu panel
         if (menuManager != null)
@@ -519,7 +515,7 @@ public class LoginUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Clear status on both panels
+    /// Clear status on all panels
     /// </summary>
     private void ClearAllStatus()
     {

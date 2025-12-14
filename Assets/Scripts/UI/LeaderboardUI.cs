@@ -1,12 +1,8 @@
 /// <summary>
-/// 
 /// Author: Jayden Wong
 /// Date: 14 December 2025
 /// Purpose:
-/// Manages the leaderboard UI display with real-time Firebase data.
-/// Connects 10 display name fields and 10 affection value fields
-/// to show the top players sorted by highest affection.
-/// 
+/// Manages the leaderboard UI and renders top 10 players from Firebase.
 /// </summary>
 
 using UnityEngine;
@@ -118,6 +114,21 @@ public class LeaderboardUI : MonoBehaviour
         
         Debug.Log("[LeaderboardUI] FetchLeaderboard called");
     }
+
+    /// <summary>
+    /// Returns the text color for a leaderboard row based on rank and user status.
+    /// Top three ranks are highlighted (gold, silver, bronze), the current user is
+    /// highlighted separately, and all other entries use the default color.
+    /// </summary>
+    private Color GetLeaderboardRowColor(int index, bool isCurrentUser)
+    {
+        if (index == 0) return new Color(242f/255f, 201f/255f, 76f/255f);   // Gold
+        if (index == 1) return new Color(209f/255f, 213f/255f, 219f/255f);  // Silver
+        if (index == 2) return new Color(198f/255f, 134f/255f, 66f/255f);   // Bronze
+        if (isCurrentUser) return new Color(34f/255f, 211f/255f, 238f/255f);// Current user
+        return Color.white;
+    }
+
     
     /// <summary>
     /// Handle leaderboard data received from Firebase
@@ -125,140 +136,75 @@ public class LeaderboardUI : MonoBehaviour
     private void HandleLeaderboardLoaded(List<LeaderboardEntry> entries)
     {
         ShowLoading(false);
-        
+
         Debug.Log("[LeaderboardUI] HandleLeaderboardLoaded called with " + (entries?.Count ?? 0) + " entries");
-        
+
         if (entries == null || entries.Count == 0)
         {
             ShowError("No leaderboard data available");
             return;
         }
-        
-        // Hide error if there was one
+
         if (errorText != null)
             errorText.gameObject.SetActive(false);
-        
-        // Populate the leaderboard UI
+
         for (int i = 0; i < 10; i++)
         {
             if (i < entries.Count)
             {
-                // We have data for this position
                 LeaderboardEntry entry = entries[i];
-                
-                Debug.Log($"[LeaderboardUI] Position {i+1}: {entry.displayName} - {entry.highestAffection}");
-                
+
+                // Check if this row is the current user (compute once per row)
+                bool isCurrentUser = false;
+                if (FirebaseAuthManager.Instance != null && FirebaseAuthManager.Instance.IsUserSignedIn())
+                {
+                    var currentUser = FirebaseAuthManager.Instance.GetCurrentUser();
+                    if (currentUser != null)
+                        isCurrentUser = (entry.userId == currentUser.UserId);
+                }
+
+                string displayText = isCurrentUser ? "You" : entry.displayName;
+                Color rowColor = GetLeaderboardRowColor(i, isCurrentUser);
+
                 if (displayFields[i] != null)
                 {
-                    // Check if this is the current user
-                    bool isCurrentUser = false;
-                    if (FirebaseAuthManager.Instance != null && FirebaseAuthManager.Instance.IsUserSignedIn())
-                    {
-                        var currentUser = FirebaseAuthManager.Instance.GetCurrentUser();
-                        isCurrentUser = (entry.userId == currentUser.UserId);
-                    }
-                    
-                    // Display "You" if it's the current user, otherwise show their name
-                    string displayText = isCurrentUser ? "You" : entry.displayName;
                     displayFields[i].text = displayText;
-                    
-                    // Set color based on position (top 3 colors override "You" color)
-                    Color textColor;
-                    if (i == 0) // 1st place - Gold
-                    {
-                        textColor = new Color(242f/255f, 201f/255f, 76f/255f); // #F2C94C
-                    }
-                    else if (i == 1) // 2nd place - Silver
-                    {
-                        textColor = new Color(209f/255f, 213f/255f, 219f/255f); // #D1D5DB
-                    }
-                    else if (i == 2) // 3rd place - Bronze
-                    {
-                        textColor = new Color(198f/255f, 134f/255f, 66f/255f); // #C68642
-                    }
-                    else if (isCurrentUser) // Current user (not in top 3) - Cyan
-                    {
-                        textColor = new Color(34f/255f, 211f/255f, 238f/255f); // #22D3EE (bright cyan)
-                    }
-                    else // Everyone else
-                    {
-                        textColor = Color.white;
-                    }
-                    
-                    displayFields[i].color = textColor;
-                    displayFields[i].ForceMeshUpdate();
+                    displayFields[i].color = rowColor;
                     displayFields[i].gameObject.SetActive(true);
-                    Debug.Log($"[LeaderboardUI] Set display{i+1} to: {displayText}");
                 }
                 else
                 {
-                    Debug.LogWarning($"[LeaderboardUI] display{i+1} is NULL!");
+                    Debug.LogWarning($"[LeaderboardUI] display{i + 1} is NULL!");
                 }
-                
+
                 if (affectionFields[i] != null)
                 {
                     affectionFields[i].text = entry.highestAffection.ToString();
-                    
-                    // Check if this is the current user
-                    bool isCurrentUser = false;
-                    if (FirebaseAuthManager.Instance != null && FirebaseAuthManager.Instance.IsUserSignedIn())
-                    {
-                        var currentUser = FirebaseAuthManager.Instance.GetCurrentUser();
-                        isCurrentUser = (entry.userId == currentUser.UserId);
-                    }
-                    
-                    // Set color based on position (same as display name)
-                    Color textColor;
-                    if (i == 0) // 1st place - Gold
-                    {
-                        textColor = new Color(242f/255f, 201f/255f, 76f/255f); // #F2C94C
-                    }
-                    else if (i == 1) // 2nd place - Silver
-                    {
-                        textColor = new Color(209f/255f, 213f/255f, 219f/255f); // #D1D5DB
-                    }
-                    else if (i == 2) // 3rd place - Bronze
-                    {
-                        textColor = new Color(198f/255f, 134f/255f, 66f/255f); // #C68642
-                    }
-                    else if (isCurrentUser) // Current user (not in top 3) - Cyan
-                    {
-                        textColor = new Color(34f/255f, 211f/255f, 238f/255f); // #22D3EE (bright cyan)
-                    }
-                    else // Everyone else
-                    {
-                        textColor = Color.white;
-                    }
-                    
-                    affectionFields[i].color = textColor;
-                    affectionFields[i].ForceMeshUpdate();
+                    affectionFields[i].color = rowColor;
                     affectionFields[i].gameObject.SetActive(true);
-                    Debug.Log($"[LeaderboardUI] Set aff{i+1} to: {entry.highestAffection}");
                 }
                 else
                 {
-                    Debug.LogWarning($"[LeaderboardUI] aff{i+1} is NULL!");
+                    Debug.LogWarning($"[LeaderboardUI] aff{i + 1} is NULL!");
                 }
             }
             else
             {
-                // No data for this position - show placeholder or hide
+                // No player data exists for this rank, so show placeholder text instead of hiding the row.
                 if (displayFields[i] != null)
                 {
                     displayFields[i].text = "---";
-                    displayFields[i].ForceMeshUpdate();
                     displayFields[i].gameObject.SetActive(true);
                 }
-                
+
                 if (affectionFields[i] != null)
                 {
                     affectionFields[i].text = "---";
-                    affectionFields[i].ForceMeshUpdate();
                     affectionFields[i].gameObject.SetActive(true);
                 }
             }
         }
-        
+
         Debug.Log("[LeaderboardUI] Finished displaying " + entries.Count + " leaderboard entries");
     }
     

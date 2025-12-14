@@ -1,5 +1,4 @@
 /// <summary>
-/// 
 /// Author: Jayden Wong
 /// Date: 13 December 2025
 /// Purpose:
@@ -7,7 +6,6 @@
 /// Handles transitions between menu, instructions, credits, and leaderboard panels.
 /// Coordinates with LoginUI for sign out flow.
 /// Manages AR and UI camera switching.
-/// 
 /// </summary>
 
 using UnityEngine;
@@ -52,22 +50,18 @@ public class MenuManager : MonoBehaviour
     private void Start()
     {
         InitializeButtons();
-        
-        // Hide all panels initially
         HideAllPanels();
         
         // Start with UI mode enabled (UI Camera on, XR off)
         SetUIMode(true);
-        
-        // Menu panel will be shown by LoginUI after successful login
     }
     
     /// <summary>
-    /// Switch between UI Camera (menus) and XR Camera (gameplay)
+    /// Switch between UI (menus) and XR (gameplay) cameras.
     /// </summary>
     public void SetUIMode(bool isUIMode)
     {
-        // Enable UI Camera for menus, disable for gameplay
+        // Update MainCamera tag so camera-dependent systems use the active camera.
         if (uiCamera != null)
         {
             uiCamera.gameObject.SetActive(isUIMode);
@@ -224,15 +218,12 @@ public class MenuManager : MonoBehaviour
         if (isTransitioning) return;
         
         Debug.Log("[MenuManager] Find Pet clicked");
-        
-        // ENABLE AR CAMERA IMMEDIATELY
         SetUIMode(false);
         
-        // Hide menu panel
         if (menuPanel != null)
             menuPanel.SetActive(false);
         
-        // Show instructions panel (now overlaid on AR view)
+        // Show instructions overlay while AR camera is active.
         if (instructionsPanel != null)
         {
             instructionsPanel.SetActive(true);
@@ -252,27 +243,23 @@ public class MenuManager : MonoBehaviour
     {
         isTransitioning = true;
         
-        // Wait for the specified duration
+        // Delay before starting gameplay.
         yield return new WaitForSeconds(instructionDisplayTime);
         
-        // Hide instructions panel
         if (instructionsPanel != null)
             instructionsPanel.SetActive(false);
         
-        // Start the actual game
         StartGame();
         
         isTransitioning = false;
     }
     
     /// <summary>
-    /// Start the actual gameplay
+    /// Debug start of gameplay
     /// </summary>
     private void StartGame()
     {
         Debug.Log("[MenuManager] Starting game...");
-        
-        // Just log that we're ready
         Debug.Log("[MenuManager] Game ready - AR camera active");
     }
     
@@ -371,10 +358,7 @@ public class MenuManager : MonoBehaviour
             FirebaseAuthManager.Instance.SignOut();
         }
         
-        // Hide all menu panels
         HideAllPanels();
-        
-        // Show login UI again
         if (loginUI != null)
         {
             loginUI.ShowLoginPanelFromMenu();
@@ -384,7 +368,7 @@ public class MenuManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Reset all AR tracked objects (dogs)
+    /// Clears AR spawned/tracked objects when returning to menu or signing out.
     /// </summary>
     private void ResetARTrackedObjects()
     {
@@ -393,18 +377,5 @@ public class MenuManager : MonoBehaviour
         {
             tracker.ResetSpawnedObjects();
         }
-    }
-
-    /// <summary>
-    /// Set button interactivity (useful during transitions)
-    /// </summary>
-    private void SetButtonsInteractable(bool value)
-    {
-        if (findPetButton != null) findPetButton.interactable = value;
-        if (creditsButton != null) creditsButton.interactable = value;
-        if (leaderboardButton != null) leaderboardButton.interactable = value;
-        if (signOutButton != null) signOutButton.interactable = value;
-        if (creditsBackButton != null) creditsBackButton.interactable = value;
-        if (leaderboardBackButton != null) leaderboardBackButton.interactable = value;
     }
 }
