@@ -118,7 +118,7 @@ public class StickyImageTracker : MonoBehaviour
             // Ensure the root is active so children can be activated
             if (spawnedRoot != null && !spawnedRoot.gameObject.activeSelf)
                 spawnedRoot.gameObject.SetActive(true);
-            Vector3 localOffset = new Vector3(0f, 0.35f, 0f);
+            Vector3 localOffset = new Vector3(0f, 0.55f, 0f);
 
             obj.transform.position =
                 trackedImage.transform.position +

@@ -8,6 +8,7 @@ using Firebase.Extensions;
 /// Central Firebase manager - initializes all Firebase services
 /// Singleton pattern ensures only one instance exists
 /// Uses .env configuration for security
+/// FIXED: Now properly loads config on Android using coroutine
 /// </summary>
 public class FirebaseManager : MonoBehaviour
 {
@@ -39,15 +40,18 @@ public class FirebaseManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         
-        // Load config first, then initialize
-        if (FirebaseConfig.LoadConfig())
+        // Load config first using coroutine, then initialize
+        StartCoroutine(FirebaseConfig.LoadConfigAsync((success) =>
         {
-            InitializeFirebase();
-        }
-        else
-        {
-            Debug.LogError("[FirebaseManager] Cannot initialize - config loading failed");
-        }
+            if (success)
+            {
+                InitializeFirebase();
+            }
+            else
+            {
+                Debug.LogError("[FirebaseManager] Cannot initialize - config loading failed");
+            }
+        }));
     }
     
     private void InitializeFirebase()

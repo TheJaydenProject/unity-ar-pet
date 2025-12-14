@@ -1,10 +1,13 @@
 using UnityEngine;
 using System.IO;
+using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.Networking;
 
 /// <summary>
 /// Configuration loader for Firebase services using .env file
 /// Reads from StreamingAssets/.env at runtime
+/// FIXED: Now works on Android builds using UnityWebRequest
 /// </summary>
 public static class FirebaseConfig
 {
@@ -33,30 +36,78 @@ public static class FirebaseConfig
     /// <summary>
     /// Load configuration from .env file
     /// Call this before using any Firebase services
+    /// Now returns IEnumerator for async loading on Android
     /// </summary>
-    public static bool LoadConfig()
+    public static IEnumerator LoadConfigAsync(System.Action<bool> callback)
     {
         if (isLoaded)
         {
             Debug.Log("[FirebaseConfig] Config already loaded");
-            return true;
+            callback?.Invoke(true);
+            yield break;
         }
         
         string envPath = Path.Combine(Application.streamingAssetsPath, ".env");
         Debug.Log("[FirebaseConfig] Looking for .env at: " + envPath);
         
-        if (!File.Exists(envPath))
+        string fileContent = null;
+        
+        // Use UnityWebRequest for Android, File.ReadAllText for Editor/Standalone
+        if (Application.platform == RuntimePlatform.Android)
         {
-            Debug.LogError("[FirebaseConfig] .env file not found at: " + envPath);
-            Debug.LogError("[FirebaseConfig] Please create StreamingAssets/.env file with Firebase credentials");
-            return false;
+            Debug.Log("[FirebaseConfig] Using UnityWebRequest for Android");
+            
+            UnityWebRequest www = UnityWebRequest.Get(envPath);
+            yield return www.SendWebRequest();
+            
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError("[FirebaseConfig] Failed to load .env on Android: " + www.error);
+                Debug.LogError("[FirebaseConfig] Make sure .env file exists in StreamingAssets folder");
+                callback?.Invoke(false);
+                yield break;
+            }
+            
+            fileContent = www.downloadHandler.text;
+        }
+        else
+        {
+            Debug.Log("[FirebaseConfig] Using File.ReadAllText for non-Android platform");
+            
+            if (!File.Exists(envPath))
+            {
+                Debug.LogError("[FirebaseConfig] .env file not found at: " + envPath);
+                callback?.Invoke(false);
+                yield break;
+            }
+            
+            try
+            {
+                fileContent = File.ReadAllText(envPath);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("[FirebaseConfig] Failed to read .env: " + ex.Message);
+                callback?.Invoke(false);
+                yield break;
+            }
+        }
+        
+        // Parse the file content
+        if (string.IsNullOrEmpty(fileContent))
+        {
+            Debug.LogError("[FirebaseConfig] .env file is empty");
+            callback?.Invoke(false);
+            yield break;
         }
         
         try
         {
             var config = new Dictionary<string, string>();
             
-            foreach (var line in File.ReadAllLines(envPath))
+            string[] lines = fileContent.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+            
+            foreach (var line in lines)
             {
                 // Skip empty lines and comments
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
@@ -82,19 +133,20 @@ public static class FirebaseConfig
             if (string.IsNullOrEmpty(DatabaseURL))
             {
                 Debug.LogError("[FirebaseConfig] FIREBASE_DATABASE_URL not found in .env");
-                return false;
+                callback?.Invoke(false);
+                yield break;
             }
             
             isLoaded = true;
             Debug.Log("[FirebaseConfig] Config loaded successfully");
             Debug.Log("[FirebaseConfig] Database URL: " + DatabaseURL);
             
-            return true;
+            callback?.Invoke(true);
         }
         catch (System.Exception ex)
         {
-            Debug.LogError("[FirebaseConfig] Failed to load .env: " + ex.Message);
-            return false;
+            Debug.LogError("[FirebaseConfig] Failed to parse .env: " + ex.Message);
+            callback?.Invoke(false);
         }
     }
     
