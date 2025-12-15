@@ -290,7 +290,7 @@
 
         
         // Update Score
-        document.getElementById('updateScoreBtn').addEventListener('click', async () => {
+        document.getElementById('updateScoreBtn').addEventListener('click', async function() {
             const uid = targetPlayerSelect.value;
             const score = parseInt(document.getElementById('newScore').value);
 
@@ -298,23 +298,24 @@
                 return showToast('Please select a player and enter a valid non-negative score.', 'error');
             }
             
-            this.disabled = true;
-            this.innerText = "Updating...";
+            const btn = this;  // Now "this" refers to the button
+            btn.disabled = true;
+            btn.innerText = "Updating...";
 
             try {
                 await updateLeaderboardEntry(uid, { highestAffection: score, lastUpdated: Math.floor(Date.now() / 1000) });
-                showToast(`Successfully updated ${targetPlayerSelect.options[targetPlayerSelect.selectedIndex].innerText} to ${score} 💖`);
+                showToast(`Successfully updated to ${score} 💖`);
                 await loadAdminData(); 
             } catch (e) {
                 showToast('Update failed: ' + e.message, 'error');
             } finally {
-                this.disabled = false;
-                this.innerText = "Update Player's High Score";
+                btn.disabled = false;
+                btn.innerText = "Update Player's High Score";
             }
         });
 
         // Delete User
-        document.getElementById('deleteUserBtn').addEventListener('click', async () => {
+        document.getElementById('deleteUserBtn').addEventListener('click', async function() {
             const uid = deletePlayerSelect.value;
             const displayName = deletePlayerSelect.options[deletePlayerSelect.selectedIndex]?.innerText || 'Unknown User';
 
@@ -324,19 +325,20 @@
             
             if(confirm(`WARNING: Are you sure you want to PERMANENTLY delete all data for ${displayName}? This cannot be undone.`)) {
                 
-                this.disabled = true;
-                this.innerText = "Deleting...";
+                const btn = this;  // Now "this" refers to the button
+                btn.disabled = true;
+                btn.innerText = "Deleting...";
 
                 try {
                     await deleteUserStats(uid);
                     showToast(`Successfully deleted all data for ${displayName}.`, 'info');
                     await loadAdminData(); 
-                    await loadGameplayMetrics(); // Reload metrics/table after deletion
+                    await loadGameplayMetrics();
                 } catch(e) {
                     showToast('Deletion failed: ' + e.message, 'error');
                 } finally {
-                    this.disabled = false;
-                    this.innerText = "PERMANENTLY DELETE USER DATA";
+                    btn.disabled = false;
+                    btn.innerText = "PERMANENTLY DELETE USER DATA";
                 }
             }
         });
