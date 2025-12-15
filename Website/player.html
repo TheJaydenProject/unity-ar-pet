@@ -1,0 +1,133 @@
+<!--
+    Author: Jayden Wong
+    Date: 13 December 2025
+    Player profile page displaying caretaker statistics and session history.
+    Shows user's best bond score, total games played, join date, and recent
+    sessions with interactive turn-by-turn visualization. Displays last 5 actions
+    per session with tooltips showing action results and affection gained.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Profile - PawPalAR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="./js/config.js"></script>
+</head>
+<body class="bg-surface text-textPrimary font-sans antialiased pb-12">
+
+    <main id="mainContent" class="max-w-5xl mx-auto p-4 md:p-6 opacity-0 transition-opacity duration-500">
+        <div class="bg-surfaceContainer rounded-[44px] p-8 md:p-10 shadow-sm mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div>
+                <h2 class="text-sm font-bold text-accent uppercase tracking-widest mb-1">Caretaker Profile</h2>
+                <h1 id="pName" class="text-4xl md:text-5xl font-bold text-primary mb-2">Loading...</h1>
+                <div class="flex gap-4 text-textSecondary font-medium">
+                    <span id="pJoined">Joined: ...</span>
+                    <span>•</span>
+                    <span id="pGames">Games: ...</span>
+                </div>
+            </div>
+            <div class="bg-surfaceLow/50 backdrop-blur p-6 rounded-card text-center min-w-[150px] border border-outline/20">
+                <div class="text-sm text-textSecondary uppercase font-bold">Best Bond</div>
+                <div id="pHighList" class="text-4xl font-bold text-primary mt-1">0</div>
+                <div class="text-2xl">💖</div>
+            </div>
+        </div>
+
+        <h3 class="text-2xl font-bold text-textPrimary mb-4 px-2">Recent Sessions</h3>
+        <div id="sessionsList" class="space-y-4">
+            </div>
+    </main>
+
+    <script type="module">
+        import { auth } from './js/config.js';
+        import { renderHeader, getActionBadge } from './js/ui.js';
+        import { getFullPlayerProfile } from './js/db.js';
+
+        auth.onAuthStateChanged((user) => {
+            renderHeader('player');
+            loadProfile();
+        });
+
+        async function loadProfile() {
+            const params = new URLSearchParams(window.location.search);
+
+            // Default to viewing current user's profile if no UID in URL
+            const uid = params.get('uid') || auth.currentUser?.uid;
+
+            if (!uid) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const data = await getFullPlayerProfile(uid);
+            
+            if (!data) {
+                document.getElementById('pName').innerText = "User not found";
+                document.getElementById('mainContent').classList.remove('opacity-0');
+                return;
+            }
+
+            // 1. Populate Header
+            document.getElementById('pName').innerText = data.profile.displayName || 'Unknown';
+            document.getElementById('pHighList').innerText = data.profile.highestAffection || 0;
+            document.getElementById('pGames').innerText = `Games: ${data.profile.totalGamesPlayed || 0}`;
+            
+            const date = new Date(data.profile.createdAt * 1000);
+            document.getElementById('pJoined').innerText = `Joined: ${date.toLocaleDateString()}`;
+
+            // 2. Populate Sessions
+            const list = document.getElementById('sessionsList');
+            if (data.sessions.length === 0) {
+                list.innerHTML = `<div class="p-8 text-center text-textSecondary bg-white/30 rounded-card">No games played yet.</div>`;
+            } else {
+                data.sessions.forEach(session => {
+                    const sessionDate = new Date(session.endTime * 1000).toLocaleString();
+                    
+                    // Render last 5 turns as a visual strip
+                    let turnsHtml = '';
+                    if (session.turns) {
+                        // Display last 5 turns as interactive timeline
+                        const recentTurns = session.turns.slice(-5);
+                        turnsHtml = recentTurns.map(t => {
+                            // Icon mapping
+                            const icons = { 'Play': '🎾', 'Feed': '🍖', 'Rest': '💤' };
+                            const icon = icons[t.action] || '❓';
+                            const opacity = t.result === 'Failed' ? 'opacity-50 grayscale' : '';
+                            return `
+                                <div class="flex flex-col items-center group relative cursor-help">
+                                    <div class="w-8 h-8 rounded-full bg-surfaceLow flex items-center justify-center text-sm border border-outline/20 ${opacity}">
+                                        ${icon}
+                                    </div>
+                                    <div class="absolute bottom-full mb-2 w-max px-2 py-1 bg-textPrimary text-surface text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        ${t.action}: ${t.result} (+${t.affectionGained}💖)
+                                    </div>
+                                </div>
+                            `;
+                        }).join('<div class="w-4 h-0.5 bg-outline/20"></div>'); // Connector line
+                    }
+
+                    const html = `
+                        <div class="bg-white/60 rounded-card p-6 shadow-sm border border-outline/5 hover:shadow-md transition-shadow">
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
+                                <div>
+                                    <div class="text-sm text-textSecondary font-mono">${sessionDate}</div>
+                                    <div class="text-lg font-bold text-primary">Final Score: ${session.finalAffection} 💖</div>
+                                </div>
+                                <div class="flex items-center gap-2 bg-surface/50 px-4 py-2 rounded-2xl">
+                                    ${turnsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    list.innerHTML += html;
+                });
+            }
+
+            document.getElementById('mainContent').classList.remove('opacity-0');
+        }
+    </script>
+</body>
+</html>

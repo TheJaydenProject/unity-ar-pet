@@ -1,0 +1,90 @@
+<!--
+    Author: Jayden Wong
+    Date: 13 December 2025
+    Public leaderboard page displaying top caretakers ranked by highest affection
+    scores. Features real-time updates via Firebase subscriptions, medal icons for
+    top 3 players, and visual highlighting of current user's position. Accessible
+    to both logged-in users and guests.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PawPalAR - Leaderboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="module" src="./js/config.js"></script>
+</head>
+<body class="bg-surface text-textPrimary font-sans antialiased min-h-screen">
+
+    <main class="max-w-4xl mx-auto p-4 md:p-6">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-primary mb-2">Top Caretakers</h1>
+            <p class="text-textSecondary text-lg">See who has the strongest bond with their PawPals.</p>
+        </div>
+
+        <div class="bg-surfaceContainer/50 rounded-card p-1 shadow-sm border border-outline/10">
+            <div class="grid grid-cols-12 gap-4 px-6 py-3 text-sm font-bold text-textSecondary uppercase tracking-wider border-b border-outline/20">
+                <div class="col-span-2 md:col-span-1">Rank</div>
+                <div class="col-span-6 md:col-span-7">Caretaker</div>
+                <div class="col-span-4 md:col-span-4 text-right">Affection</div>
+            </div>
+
+            <div id="leaderboardList" class="flex flex-col gap-2 mt-2 pb-2">
+                <div class="animate-pulse flex space-x-4 p-4">
+                    <div class="h-4 bg-surfaceLow rounded w-3/4"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { auth } from './js/config.js';
+        import { renderHeader } from './js/ui.js';
+        import { subscribeToLeaderboard } from './js/db.js';
+
+        auth.onAuthStateChanged(() => {
+            renderHeader('leaderboard');
+        });
+
+        const listEl = document.getElementById('leaderboardList');
+
+        subscribeToLeaderboard((users) => {
+            listEl.innerHTML = '';
+            
+            users.forEach((user, index) => {
+                const rank = index + 1;
+                let medal = '';
+                if(rank === 1) medal = '🥇';
+                if(rank === 2) medal = '🥈';
+                if(rank === 3) medal = '🥉';
+
+                const row = document.createElement('a');
+                row.href = `player.html?uid=${user.userId}`;
+                row.className = `
+                    grid grid-cols-12 gap-4 px-6 py-4 items-center rounded-2xl transition-all duration-200
+                    hover:bg-white/40 hover:scale-[1.01] hover:shadow-md cursor-pointer group
+                    ${user.userId === auth.currentUser?.uid ? 'bg-primary/5 border border-primary/20' : ''}
+                `;
+                
+                row.innerHTML = `
+                    <div class="col-span-2 md:col-span-1 font-bold text-lg text-primary flex items-center gap-1">
+                        ${rank} <span class="text-xl">${medal}</span>
+                    </div>
+                    <div class="col-span-6 md:col-span-7 font-medium text-textPrimary text-lg group-hover:text-primary transition-colors">
+                        ${user.displayName || 'Unknown'}
+                    </div>
+                    <div class="col-span-4 md:col-span-4 text-right">
+                        <span class="inline-block bg-primary text-onPrimary px-3 py-1 rounded-pill font-bold shadow-sm">
+                            ${user.highestAffection} 💖
+                        </span>
+                    </div>
+                `;
+                listEl.appendChild(row);
+            });
+        });
+    </script>
+</body>
+</html>

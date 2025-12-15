@@ -1,0 +1,345 @@
+<!--
+    Author: Jayden Wong
+    Date: 13 December 2025
+    Admin dashboard for PawPalAR system. Displays operational metrics including
+    today's session statistics (total sessions, average affection, highest score).
+    Provides admin tools to modify player high scores and permanently delete user
+    data. Includes real-time session table showing completed games with timestamps,
+    usernames, affection scores, and durations.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - PawPalAR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="./js/config.js"></script>
+</head>
+<body class="bg-surface text-textPrimary font-sans">
+    
+    <div id="adminContent" class="hidden max-w-6xl mx-auto p-6">
+        <div class="bg-primary/10 border border-primary/20 text-textPrimary px-6 py-4 rounded-card mb-8 flex justify-between items-center shadow-sm">
+            <span class="font-bold flex items-center gap-2 text-xl text-primary">🛡️ Admin Dashboard</span>
+            <span class="text-xs uppercase tracking-wide text-textSecondary">PawPalAR System Control</span>
+        </div>
+
+        <h2 class="text-xl font-bold mb-4 text-textPrimary border-b border-outline/20 pb-2">Operational Metrics (Today)</h2>
+        <div id="kpiContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            </div>
+
+        <div class="bg-surfaceContainer p-6 rounded-card shadow-md mb-8">
+            <h3 class="text-lg font-bold mb-4 text-textPrimary">Today's Completed Sessions</h3>
+            <div id="sessionsTableContainer" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-outline/30">
+                    <thead class="bg-surfaceLow/50">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-textSecondary uppercase tracking-wider rounded-tl-lg">Time</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-textSecondary uppercase tracking-wider">User</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-textSecondary uppercase tracking-wider">Affection 💖</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-textSecondary uppercase tracking-wider rounded-tr-lg">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsTableBody" class="divide-y divide-outline/30 bg-surfaceContainer">
+                        <tr><td colspan="4" class="text-center py-4 text-textSecondary" id="sessionsStatus">Loading sessions...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8">
+            
+            <div class="bg-surfaceContainer p-6 rounded-card shadow-md">
+                <h2 class="text-xl font-bold mb-4 text-textPrimary">Modify Player Score</h2>
+                <div class="space-y-4">
+                    <label for="targetPlayer" class="block text-sm font-bold text-textSecondary ml-1">Select Player</label>
+                    <select id="targetPlayer" class="w-full p-3 rounded-xl bg-surfaceLow/50 border border-outline/50 focus:border-primary focus:outline-none transition-colors">
+                        <option value="" disabled selected>Loading players...</option>
+                    </select>
+                    <label for="newScore" class="block text-sm font-bold text-textSecondary ml-1">New Highest Affection</label>
+                    <input type="number" id="newScore" placeholder="Enter new score (e.g., 99)" min="0" 
+                        class="w-full px-4 py-3 bg-surfaceLow/50 rounded-xl border border-outline/50 focus:border-primary focus:outline-none transition-colors">
+                    <button id="updateScoreBtn" class="bg-primary text-onPrimary px-4 py-3 rounded-full font-bold text-sm w-full hover:shadow-lg active:scale-95 transition-all">
+                        Update Player's High Score
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-surfaceContainer p-6 rounded-card shadow-md border-2 border-accent/20">
+                <h2 class="text-xl font-bold text-accent mb-4">Danger Zone: Delete User</h2>
+                <p class="text-sm text-textSecondary mb-4">Permanently remove player from the Leaderboard AND User Profiles.</p>
+                <label for="deletePlayer" class="block text-sm font-bold text-textSecondary ml-1">Select Player to Delete</label>
+                <select id="deletePlayer" class="w-full p-3 rounded-xl bg-surfaceLow/50 border border-outline/50 focus:border-accent focus:outline-none transition-colors mb-4">
+                    <option value="" disabled selected>Loading players...</option>
+                </select>
+                <button id="deleteUserBtn" 
+                    class="bg-accent text-onPrimary px-4 py-3 rounded-full font-bold text-sm w-full hover:bg-tertiary active:scale-95 transition-all">
+                    PERMANENTLY DELETE USER DATA
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingMessage" class="text-center p-12 text-lg text-textSecondary">
+        Loading admin panel...
+    </div>
+
+    <script type="module">
+        import { auth, ADMIN_UID } from './js/config.js';
+        import { renderHeader, showToast } from './js/ui.js';
+        import { getAllLeaderboardEntries, updateLeaderboardEntry, deleteUserStats, fetchAllUserSessions } from './js/db.js';
+
+        const adminContent = document.getElementById('adminContent');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const targetPlayerSelect = document.getElementById('targetPlayer');
+        const deletePlayerSelect = document.getElementById('deletePlayer');
+        const sessionsStatus = document.getElementById('sessionsStatus');
+        const kpiContainer = document.getElementById('kpiContainer');
+        const sessionsTableBody = document.getElementById('sessionsTableBody');
+        
+        // --- Shared Utility Functions ---
+
+        // Helper for YYYY-MM-DD format
+        function getTodayDateString() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        
+        // Helper to format Firebase timestamp (seconds or milliseconds) to YYYY-MM-DD
+        function formatTimestampToDateString(timestamp) {
+            if (!timestamp) return null;
+            let timestampMs = timestamp;
+
+            // Check if timestamps are in seconds (10 digits) or milliseconds (13 digits)
+            if (String(timestamp).length === 10) {
+                 timestampMs = timestamp * 1000;
+            }
+            const date = new Date(timestampMs);
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        // Helper to format timestamp to HH:MM:SS AM/PM
+        function formatTimestampToTime(timestamp) {
+            if (!timestamp) return 'N/A';
+            let timestampMs = timestamp;
+            if (String(timestamp).length === 10) {
+                 timestampMs = timestamp * 1000;
+            }
+            return new Date(timestampMs).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+        }
+        
+        // Helper to format duration in seconds to M:SS
+        function formatDuration(durationSeconds) {
+             if (typeof durationSeconds !== 'number' || durationSeconds < 0) return 'N/A';
+             const minutes = Math.floor(durationSeconds / 60);
+             const seconds = Math.floor(durationSeconds % 60);
+             return `${minutes}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // --- Core Auth Check ---
+        auth.onAuthStateChanged((user) => {
+            if (user && user.uid === ADMIN_UID) {
+                renderHeader('admin');
+                loadingMessage.classList.add('hidden');
+                adminContent.classList.remove('hidden');
+                loadAdminData();
+                loadGameplayMetrics();
+            } else {
+                if (!user) {
+                    showToast("Admin access required. Please log in.", 'error');
+                } else {
+                    showToast("Access Denied. You are not an administrator.", 'error');
+                }
+                setTimeout(() => window.location.href = 'leaderboard.html', 1500);
+            }
+        });
+
+
+        // --- New: Gameplay Metrics Logic ---
+
+        async function loadGameplayMetrics() {
+            sessionsStatus.innerText = "Fetching session data...";
+            const todayDate = getTodayDateString();
+            
+            try {
+                const allSessions = await fetchAllUserSessions();
+                
+                // 1. Filter and Validate sessions for today
+                const todaySessions = allSessions
+                    .filter(session => {
+                        const sessionDate = formatTimestampToDateString(session.endTime);
+                        const isValidAffection = typeof session.finalAffection === 'number' && session.finalAffection >= 0 && session.finalAffection <= 100;
+                        const hasTimes = session.startTime && session.endTime;
+                        
+                        // We only count sessions that ended today, have valid affection, and have both start/end times
+                        return sessionDate === todayDate && isValidAffection && hasTimes;
+                    })
+                    .map(session => {
+                        // Calculate duration
+                        let durationSeconds = 0;
+                        if (session.endTime && session.startTime) {
+                             // Convert timestamps to seconds if needed for duration calculation
+                             let endTimeSec = String(session.endTime).length === 13 ? session.endTime / 1000 : session.endTime;
+                             let startTimeSec = String(session.startTime).length === 13 ? session.startTime / 1000 : session.startTime;
+                             durationSeconds = Math.max(0, endTimeSec - startTimeSec);
+                        }
+                        
+                        return { ...session, durationSeconds };
+                    });
+                
+                // 2. Calculate KPIs
+                const sessionCount = todaySessions.length;
+                const totalAffection = todaySessions.reduce((sum, s) => sum + s.finalAffection, 0);
+                const avgAffection = sessionCount > 0 ? (totalAffection / sessionCount).toFixed(1) : 0;
+                const highestAffection = sessionCount > 0 ? Math.max(...todaySessions.map(s => s.finalAffection)) : 0;
+
+                // 3. Sort Table Data (by Affection Descending)
+                const sortedSessions = todaySessions.sort((a, b) => b.finalAffection - a.finalAffection);
+
+                // 4. Render KPIs
+                renderKPIs(sessionCount, avgAffection, highestAffection);
+                
+                // 5. Render Table
+                renderSessionsTable(sortedSessions);
+                
+            } catch (e) {
+                console.error("Error loading gameplay metrics:", e);
+                sessionsStatus.innerText = `Failed to load data: ${e.message}`;
+                renderKPIs(0, 0, 0); // Render 0s on error
+            }
+        }
+        
+        function renderKPIs(count, avg, highest) {
+            kpiContainer.innerHTML = `
+                <div class="bg-surfaceLow p-5 rounded-xl border border-outline/20 shadow-sm">
+                    <p class="text-3xl font-bold text-primary">${count}</p>
+                    <p class="text-sm text-textSecondary mt-1">Total Sessions Today</p>
+                </div>
+                <div class="bg-surfaceLow p-5 rounded-xl border border-outline/20 shadow-sm">
+                    <p class="text-3xl font-bold text-primary">${avg} 💖</p>
+                    <p class="text-sm text-textSecondary mt-1">Average Affection Today</p>
+                </div>
+                <div class="bg-surfaceLow p-5 rounded-xl border border-outline/20 shadow-sm">
+                    <p class="text-3xl font-bold text-primary">${highest} 💖</p>
+                    <p class="text-sm text-textSecondary mt-1">Highest Affection Today</p>
+                </div>
+            `;
+        }
+        
+        function renderSessionsTable(sessions) {
+            sessionsTableBody.innerHTML = '';
+            
+            if (sessions.length === 0) {
+                 sessionsTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-textSecondary">No completed sessions today.</td></tr>`;
+                 return;
+            }
+
+            sessions.forEach(session => {
+                const row = document.createElement('tr');
+                row.classList.add('hover:bg-surfaceLow/50', 'transition-colors');
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-textPrimary">${formatTimestampToTime(session.endTime)}</td>
+                    <td class="px-3 py-2 text-sm text-textPrimary font-medium">${session.displayName}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-bold text-primary">${session.finalAffection}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-center text-sm text-textSecondary">${formatDuration(session.durationSeconds)}</td>
+                `;
+                sessionsTableBody.appendChild(row);
+            });
+            sessionsStatus.innerText = ''; // Clear status once table is rendered
+        }
+
+
+        // --- Data Loading: Player Modifiers ---
+        async function loadAdminData() {
+            try {
+                const players = await getAllLeaderboardEntries();
+                
+                targetPlayerSelect.innerHTML = '<option value="" disabled selected>Select a player...</option>';
+                deletePlayerSelect.innerHTML = '<option value="" disabled selected>Select a player...</option>';
+
+                players.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.uid;
+                    option.innerText = `${p.displayName} (Current: ${p.highestAffection} 💖)`;
+                    
+                    targetPlayerSelect.appendChild(option.cloneNode(true));
+                    deletePlayerSelect.appendChild(option);
+                });
+
+                if (players.length === 0) {
+                     targetPlayerSelect.innerHTML = '<option value="" disabled selected>No players found.</option>';
+                     deletePlayerSelect.innerHTML = '<option value="" disabled selected>No players found.</option>';
+                }
+
+            } catch(e) {
+                showToast("Failed to load player data: " + e.message, 'error');
+            }
+        }
+
+        
+        // Update Score
+        document.getElementById('updateScoreBtn').addEventListener('click', async () => {
+            const uid = targetPlayerSelect.value;
+            const score = parseInt(document.getElementById('newScore').value);
+
+            if (!uid || isNaN(score) || score < 0) {
+                return showToast('Please select a player and enter a valid non-negative score.', 'error');
+            }
+            
+            this.disabled = true;
+            this.innerText = "Updating...";
+
+            try {
+                await updateLeaderboardEntry(uid, { highestAffection: score, lastUpdated: Math.floor(Date.now() / 1000) });
+                showToast(`Successfully updated ${targetPlayerSelect.options[targetPlayerSelect.selectedIndex].innerText} to ${score} 💖`);
+                await loadAdminData(); 
+            } catch (e) {
+                showToast('Update failed: ' + e.message, 'error');
+            } finally {
+                this.disabled = false;
+                this.innerText = "Update Player's High Score";
+            }
+        });
+
+        // Delete User
+        document.getElementById('deleteUserBtn').addEventListener('click', async () => {
+            const uid = deletePlayerSelect.value;
+            const displayName = deletePlayerSelect.options[deletePlayerSelect.selectedIndex]?.innerText || 'Unknown User';
+
+            if (!uid) {
+                return showToast('Please select a player to delete.', 'error');
+            }
+            
+            if(confirm(`WARNING: Are you sure you want to PERMANENTLY delete all data for ${displayName}? This cannot be undone.`)) {
+                
+                this.disabled = true;
+                this.innerText = "Deleting...";
+
+                try {
+                    await deleteUserStats(uid);
+                    showToast(`Successfully deleted all data for ${displayName}.`, 'info');
+                    await loadAdminData(); 
+                    await loadGameplayMetrics(); // Reload metrics/table after deletion
+                } catch(e) {
+                    showToast('Deletion failed: ' + e.message, 'error');
+                } finally {
+                    this.disabled = false;
+                    this.innerText = "PERMANENTLY DELETE USER DATA";
+                }
+            }
+        });
+    </script>
+</body>
+</html>
